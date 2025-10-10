@@ -26,9 +26,10 @@
     private string QueryString => $@"
         SELECT
             STEP_NUMBER,
-            TOTAL_SESSIONS
+            COUNT(DISTINCT ESIGNINSTANCEID) AS TOTAL_SESSIONS
         FROM DEV_DATAMART.MART.ENROLLMENT_STEPS
         WHERE ENROLLMENTPACKAGEID = '{EnrollmentPackageId}'
+        GROUP BY STEP_NUMBER
         ORDER BY STEP_NUMBER";
 
     /// <summary>
