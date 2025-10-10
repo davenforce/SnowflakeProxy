@@ -1,0 +1,27 @@
+@using SnowflakeProxy.Core.Services
+@using SnowflakeProxy.Core.Models
+
+<ChartComponent
+    Query="@QueryString"
+    ChartType="table"
+    ShowMetadata="@ShowMetadata"
+    CacheTtl="@CacheTtl" />
+
+@code {
+    /// <summary>
+    /// Number of enrollment steps to display
+    /// </summary>
+    [Parameter] public int Limit { get; set; } = 10;
+
+    /// <summary>
+    /// Show metadata (row count, cache status)
+    /// </summary>
+    [Parameter] public bool ShowMetadata { get; set; } = true;
+
+    /// <summary>
+    /// Cache TTL
+    /// </summary>
+    [Parameter] public TimeSpan? CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
+
+    private string QueryString => $"SELECT * FROM DEV_DATAMART.MART.ENROLLMENTS LIMIT {Limit}";
+}

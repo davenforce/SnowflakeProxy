@@ -1,0 +1,231 @@
+@using SnowflakeProxy.Core.Services
+@using SnowflakeProxy.Core.Models
+@inject IReportService ReportService
+
+<div class="chart-component">
+    @if (IsLoading)
+    {
+        <div class="loading-indicator">
+            @if (LoadingContent != null)
+            {
+                @LoadingContent
+            }
+            else
+            {
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading chart...</span>
+                </div>
+                <p>Loading chart...</p>
+            }
+        </div>
+    }
+    else if (ErrorMessage != null)
+    {
+        <div class="alert alert-danger" role="alert">
+            @if (ErrorContent != null)
+            {
+                @ErrorContent(ErrorMessage)
+            }
+            else
+            {
+                <h6>Error loading chart</h6>
+                <p>@ErrorMessage</p>
+                @if (ShowRetry)
+                {
+                    <button class="btn btn-outline-danger btn-sm" @onclick="LoadChartAsync">
+                        Retry
+                    </button>
+                }
+            }
+        </div>
+    }
+    else if (ReportResult != null)
+    {
+        <div class="chart-content">
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <h4 class="chart-title">@Title</h4>
+            }
+
+            @((MarkupString)ReportResult.RenderedOutput)
+
+            @if (ShowMetadata)
+            {
+                <div class="mt-2">
+                    <small class="text-muted">
+                        Rows: @ReportResult.Data.Rows.Count
+                        @if (ReportResult.FromCache)
+                        {
+                            <text> | From Cache</text>
+                        }
+                    </small>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// SQL query to execute
+    /// </summary>
+    [Parameter] public string Query { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Query parameters (optional)
+    /// </summary>
+    [Parameter] public Dictionary<string, object>? Parameters { get; set; }
+
+    /// <summary>
+    /// Chart type: "bar", "line", "pie", "scatter", "area", "point", "table"
+    /// </summary>
+    [Parameter] public string ChartType { get; set; } = "bar";
+
+    /// <summary>
+    /// Custom VegaLite specification (overrides ChartType)
+    /// </summary>
+    [Parameter] public object? Spec { get; set; }
+
+    /// <summary>
+    /// Chart title (optional)
+    /// </summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>
+    /// Chart width in pixels
+    /// </summary>
+    [Parameter] public int? Width { get; set; }
+
+    /// <summary>
+    /// Chart height in pixels
+    /// </summary>
+    [Parameter] public int? Height { get; set; }
+
+    /// <summary>
+    /// X-axis field name (for simple charts)
+    /// </summary>
+    [Parameter] public string? XAxis { get; set; }
+
+    /// <summary>
+    /// Y-axis field name (for simple charts)
+    /// </summary>
+    [Parameter] public string? YAxis { get; set; }
+
+    /// <summary>
+    /// Color field for grouping (optional)
+    /// </summary>
+    [Parameter] public string? ColorField { get; set; }
+
+    /// <summary>
+    /// Cache TTL (optional)
+    /// </summary>
+    [Parameter] public TimeSpan? CacheTtl { get; set; }
+
+    /// <summary>
+    /// Report ID for caching purposes (auto-generated if not provided)
+    /// </summary>
+    [Parameter] public string? ReportId { get; set; }
+
+    /// <summary>
+    /// Custom loading content
+    /// </summary>
+    [Parameter] public RenderFragment? LoadingContent { get; set; }
+
+    /// <summary>
+    /// Custom error content
+    /// </summary>
+    [Parameter] public RenderFragment<string>? ErrorContent { get; set; }
+
+    /// <summary>
+    /// Event fired when error occurs
+    /// </summary>
+    [Parameter] public EventCallback<string> OnError { get; set; }
+
+    /// <summary>
+    /// Event fired when loading starts
+    /// </summary>
+    [Parameter] public EventCallback OnLoading { get; set; }
+
+    /// <summary>
+    /// Event fired when chart is loaded
+    /// </summary>
+    [Parameter] public EventCallback<ReportResult> OnLoaded { get; set; }
+
+    /// <summary>
+    /// Show retry button on error
+    /// </summary>
+    [Parameter] public bool ShowRetry { get; set; } = true;
+
+    /// <summary>
+    /// Show metadata (row count, cache status)
+    /// </summary>
+    [Parameter] public bool ShowMetadata { get; set; } = false;
+
+    private bool IsLoading { get; set; }
+    private string? ErrorMessage { get; set; }
+    private ReportResult? ReportResult { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadChartAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsLoading && ReportResult != null)
+        {
+            await LoadChartAsync();
+        }
+    }
+
+    private async Task LoadChartAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Query))
+        {
+            ErrorMessage = "Query parameter is required";
+            return;
+        }
+
+        IsLoading = true;
+        ErrorMessage = null;
+        ReportResult = null;
+        StateHasChanged();
+
+        await OnLoading.InvokeAsync();
+
+        try
+        {
+            var config = new ReportConfig
+            {
+                ReportId = ReportId ?? $"inline-{Guid.NewGuid():N}",
+                Query = Query,
+                Parameters = Parameters ?? new Dictionary<string, object>(),
+                Visualization = new VisualizationConfig
+                {
+                    Type = ChartType,
+                    Spec = Spec,
+                    Title = Title,
+                    Width = Width,
+                    Height = Height,
+                    XAxis = XAxis,
+                    YAxis = YAxis,
+                    ColorField = ColorField
+                },
+                CacheTtl = CacheTtl
+            };
+
+            ReportResult = await ReportService.GenerateReportAsync(config);
+            await OnLoaded.InvokeAsync(ReportResult);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            await OnError.InvokeAsync(ErrorMessage);
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+}

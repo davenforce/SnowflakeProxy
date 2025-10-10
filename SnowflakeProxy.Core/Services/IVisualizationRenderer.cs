@@ -1,4 +1,5 @@
 using System.Data;
+using SnowflakeProxy.Core.Models;
 
 namespace SnowflakeProxy.Core.Services;
 

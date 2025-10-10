@@ -1,0 +1,107 @@
+@page "/reports"
+@rendermode InteractiveServer
+@using SnowflakeProxy.Blazor.Components
+
+<PageTitle>Snowflake Reports</PageTitle>
+
+<h1>Snowflake Reports</h1>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h3>Connection Test</h3>
+            </div>
+            <div class="card-body">
+                <p>Using <code>&lt;ChartComponent&gt;</code> for ad-hoc queries:</p>
+
+                <ChartComponent
+                    Query="SELECT CURRENT_WAREHOUSE() as warehouse, CURRENT_DATABASE() as database, CURRENT_SCHEMA() as schema, CURRENT_TIMESTAMP() as timestamp"
+                    ChartType="table"
+                    ShowMetadata="true"
+                    CacheTtl="TimeSpan.FromMinutes(5)" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3>Custom Query Builder</h3>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="queryInput" class="form-label">SQL Query</label>
+                    <textarea class="form-control" id="queryInput" rows="4" @bind="customQuery"
+                              placeholder="SELECT * FROM your_table LIMIT 10"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="chartType" class="form-label">Chart Type</label>
+                    <select class="form-select" id="chartType" @bind="customChartType">
+                        <option value="table">Table</option>
+                        <option value="bar">Bar Chart</option>
+                        <option value="line">Line Chart</option>
+                        <option value="pie">Pie Chart</option>
+                        <option value="scatter">Scatter Plot</option>
+                        <option value="area">Area Chart</option>
+                        <option value="point">Point Chart</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" @onclick="RunCustomQuery">
+                    Run Query
+                </button>
+
+                @if (shouldRenderCustom)
+                {
+                    <div class="mt-3">
+                        <ChartComponent
+                            Query="@customQuery"
+                            ChartType="@customChartType"
+                            ShowMetadata="true"
+                            CacheTtl="TimeSpan.FromMinutes(5)" />
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3>Example Queries</h3>
+            </div>
+            <div class="card-body">
+                <p><strong>Try these queries:</strong></p>
+                <ul>
+                    <li><code>SELECT CURRENT_WAREHOUSE(), CURRENT_DATABASE(), CURRENT_SCHEMA()</code></li>
+                    <li><code>SHOW TABLES LIMIT 5</code></li>
+                    <li><code>SELECT * FROM INFORMATION_SCHEMA.TABLES LIMIT 10</code></li>
+                </ul>
+
+                <p class="mt-3">
+                    <strong>Chart Types:</strong> Choose from table, bar, line, pie, scatter, area, or point charts.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string customQuery = "SELECT CURRENT_WAREHOUSE(), CURRENT_DATABASE(), CURRENT_SCHEMA()";
+    private string customChartType = "table";
+    private bool shouldRenderCustom = false;
+
+    private void RunCustomQuery()
+    {
+        if (string.IsNullOrWhiteSpace(customQuery))
+            return;
+
+        // Toggle to force re-render of ChartComponent
+        shouldRenderCustom = false;
+        StateHasChanged();
+        shouldRenderCustom = true;
+    }
+}

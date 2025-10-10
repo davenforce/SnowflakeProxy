@@ -1,10 +1,14 @@
 using SnowflakeProxy.Sample.Server.Components;
+using SnowflakeProxy.Core.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Add SnowflakeReporting with real Snowflake connection
+builder.Services.AddSnowflakeReporting(builder.Configuration, "Snowflake");
 
 var app = builder.Build();
 

@@ -1,0 +1,42 @@
+@page "/custom-reports"
+@rendermode InteractiveServer
+@using SnowflakeProxy.Blazor.Components
+
+<PageTitle>Custom Reports</PageTitle>
+
+<h1>Custom Reports</h1>
+<p class="lead">Reusable domain-specific report components</p>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">📋 Enrollment Steps</h3>
+            </div>
+            <div class="card-body">
+                <p>Reusable component: <code>&lt;EnrollmentStepsTable Limit="20" /&gt;</code></p>
+
+                <EnrollmentStepsTable Limit="20" />
+
+                <details class="mt-3">
+                    <summary class="btn btn-sm btn-outline-secondary">View Component Source</summary>
+                    <pre class="mt-2 bg-light p-3">// Usage:
+&lt;EnrollmentStepsTable Limit="20" /&gt;
+
+// Definition (SnowflakeProxy.Blazor/Components/EnrollmentStepsTable.razor):
+&lt;ChartComponent
+    Query="@@QueryString"
+    ChartType="table" /&gt;
+
+@@code {
+    [Parameter] public int Limit { get; set; } = 20;
+
+    private string QueryString =>
+        $"SELECT * FROM DEV_DATAMART.MART.ENROLLMENT_STEPS LIMIT {Limit}";
+}</pre>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>
+

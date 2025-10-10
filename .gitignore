@@ -278,4 +278,4 @@ memAI/
 .repomixignore
 repomix-output.md
 repomix*
-docs/
+.env
