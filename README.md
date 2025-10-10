@@ -16,20 +16,24 @@ dotnet add package SnowflakeProxy.Blazor
 
 ### Basic Setup
 
-**1. Configure your Snowflake connection in `appsettings.json`:**
+**1. Configure your Snowflake connection using environment variables:**
 
-```json
-{
-  "Snowflake": {
-    "Account": "your-account",
-    "User": "your-username",
-    "Password": "your-password",
-    "Warehouse": "your-warehouse",
-    "Database": "your-database",
-    "Schema": "your-schema"
-  }
-}
+Copy the example environment file and configure your credentials:
+
+```bash
+cp example.env .env
+# Edit .env with your Snowflake account details
 ```
+
+Run the setup script to configure user secrets:
+
+```bash
+./tools/setup-secrets.sh
+```
+
+This securely stores credentials using .NET user secrets (not in source control). See `example.env` for all available configuration options.
+
+You can also use user-secrets directly.
 
 **2. Register services in `Program.cs`:**
 
@@ -58,26 +62,13 @@ app.MapRazorComponents<App>()
 app.Run();
 ```
 
-**3. Add VegaLite scripts to your `App.razor` (in `<head>`):**
-
-```html
-<head>
-    <!-- Other head content -->
-
-    <!-- VegaLite for chart rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
-</head>
-```
-
-**4. Import the namespace in `_Imports.razor`:**
+**3. Import the namespace in `_Imports.razor`:**
 
 ```razor
 @using SnowflakeProxy.Blazor.Components
 ```
 
-**5. Use the component in your pages:**
+**4. Use the component in your pages:**
 
 ```razor
 @page "/reports"
@@ -184,18 +175,18 @@ Create custom components that wrap `ChartComponent` for domain-specific reports:
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `Query` | `string` | `""` | SQL query to execute against Snowflake |
-| `ChartType` | `string` | `"bar"` | Type of visualization: `"table"`, `"bar"`, `"line"`, `"area"`, `"pie"` |
-| `Spec` | `object?` | `null` | Custom VegaLite specification (overrides `ChartType`) |
-| `ShowMetadata` | `bool` | `false` | Show row count and cache status below the chart |
-| `CacheTtl` | `TimeSpan?` | `null` | Cache duration (e.g., `TimeSpan.FromMinutes(10)`) |
-| `Width` | `int` | `800` | Chart width in pixels |
-| `Height` | `int` | `400` | Chart height in pixels |
-| `Title` | `string?` | `null` | Chart title |
-| `XAxisLabel` | `string?` | `null` | X-axis label |
-| `YAxisLabel` | `string?` | `null` | Y-axis label |
+| Parameter      | Type        | Default | Description                                                            |
+| -------------- | ----------- | ------- | ---------------------------------------------------------------------- |
+| `Query`        | `string`    | `""`    | SQL query to execute against Snowflake                                 |
+| `ChartType`    | `string`    | `"bar"` | Type of visualization: `"table"`, `"bar"`, `"line"`, `"area"`, `"pie"` |
+| `Spec`         | `object?`   | `null`  | Custom VegaLite specification (overrides `ChartType`)                  |
+| `ShowMetadata` | `bool`      | `false` | Show row count and cache status below the chart                        |
+| `CacheTtl`     | `TimeSpan?` | `null`  | Cache duration (e.g., `TimeSpan.FromMinutes(10)`)                      |
+| `Width`        | `int`       | `800`   | Chart width in pixels                                                  |
+| `Height`       | `int`       | `400`   | Chart height in pixels                                                 |
+| `Title`        | `string?`   | `null`  | Chart title                                                            |
+| `XAxisLabel`   | `string?`   | `null`  | X-axis label                                                           |
+| `YAxisLabel`   | `string?`   | `null`  | Y-axis label                                                           |
 
 ## Core Services
 
@@ -211,6 +202,7 @@ public interface ISnowflakeService
 ```
 
 **Implementations:**
+
 - `DirectSnowflakeService` - Direct connection to Snowflake (Phase 1)
 - `MockSnowflakeService` - Mock service for testing
 
@@ -228,6 +220,7 @@ public interface IReportService
 ```
 
 **Implementations:**
+
 - `DirectReportService` - Synchronous report generation (Phase 1)
 
 ### IVisualizationRenderer
@@ -245,6 +238,7 @@ public interface IVisualizationRenderer
 ```
 
 **Implementations:**
+
 - `VegaLiteRenderer` - Generates VegaLite specifications for interactive charts
 
 ### ICacheService
@@ -260,47 +254,57 @@ public interface ICacheService
 ```
 
 **Implementations:**
+
 - `MemoryCacheService` - In-memory caching with TTL support
 
 ## Project Structure
 
-```
-SnowflakeProxy/
-├── SnowflakeProxy.Core/              # Framework-agnostic business logic
-│   ├── Models/
-│   │   ├── ReportConfig.cs           # Report configuration model
-│   │   ├── VisualizationConfig.cs    # Visualization settings
-│   │   ├── ReportResult.cs           # Report generation result
-│   │   └── SnowflakeConfiguration.cs # Snowflake connection config
-│   ├── Services/
-│   │   ├── ISnowflakeService.cs      # Query execution interface
-│   │   ├── IReportService.cs         # Report generation interface
-│   │   ├── IVisualizationRenderer.cs # Rendering interface
-│   │   ├── ICacheService.cs          # Caching interface
-│   │   ├── DirectSnowflakeService.cs # Direct Snowflake implementation
-│   │   ├── DirectReportService.cs    # Direct report service
-│   │   ├── VegaLiteRenderer.cs       # VegaLite renderer
-│   │   ├── MemoryCacheService.cs     # In-memory cache
-│   │   └── MockSnowflakeService.cs   # Mock for testing
-│   └── Extensions/
-│       └── DataTableExtensions.cs    # DataTable utilities
-│
-├── SnowflakeProxy.Blazor/            # Blazor components
-│   ├── Components/
-│   │   ├── ChartComponent.razor      # Low-level query/visualization component
-│   │   └── EnrollmentStepsTable.razor # Example domain component
-│   └── wwwroot/
-│       └── snowflake-reporting.js    # JavaScript interop
-│
-├── SnowflakeProxy.Sample.Server/    # Sample Blazor Server app
-│   ├── Components/
-│   │   ├── Pages/
-│   │   │   ├── Reports.razor         # Ad-hoc query examples
-│   │   │   └── CustomReports.razor   # Custom component examples
-│   │   └── Layout/
-│   └── Program.cs
-│
-└── SnowflakeProxy.Core.Tests/       # Unit tests
+```mermaid
+graph TD
+    Root[SnowflakeProxy/]
+
+    Root --> Core[SnowflakeProxy.Core/<br/>Framework-agnostic business logic]
+    Core --> CoreModels[Models/]
+    Core --> CoreServices[Services/]
+    Core --> CoreExtensions[Extensions/]
+
+    CoreModels --> ReportConfig[ReportConfig.cs]
+    CoreModels --> VisualizationConfig[VisualizationConfig.cs]
+    CoreModels --> ReportResult[ReportResult.cs]
+    CoreModels --> SnowflakeConfig[SnowflakeConfiguration.cs]
+
+    CoreServices --> ISnowflakeService[ISnowflakeService.cs]
+    CoreServices --> IReportService[IReportService.cs]
+    CoreServices --> IVisualizationRenderer[IVisualizationRenderer.cs]
+    CoreServices --> ICacheService[ICacheService.cs]
+    CoreServices --> DirectSnowflake[DirectSnowflakeService.cs]
+    CoreServices --> DirectReport[DirectReportService.cs]
+    CoreServices --> VegaLite[VegaLiteRenderer.cs]
+    CoreServices --> MemoryCache[MemoryCacheService.cs]
+    CoreServices --> MockSnowflake[MockSnowflakeService.cs]
+
+    CoreExtensions --> DataTableExt[DataTableExtensions.cs]
+
+    Root --> Blazor[SnowflakeProxy.Blazor/<br/>Blazor components]
+    Blazor --> Components[Components/]
+    Blazor --> Wwwroot[wwwroot/]
+
+    Components --> ChartComponent[ChartComponent.razor]
+    Components --> EnrollmentTable[EnrollmentStepsTable.razor]
+
+    Wwwroot --> SnowflakeJS[snowflake-reporting.js]
+
+    Root --> Sample[SnowflakeProxy.Sample.Server/<br/>Sample Blazor Server app]
+    Sample --> SampleComponents[Components/]
+    Sample --> ProgramCS[Program.cs]
+
+    SampleComponents --> Pages[Pages/]
+    SampleComponents --> Layout[Layout/]
+
+    Pages --> Reports[Reports.razor]
+    Pages --> CustomReports[CustomReports.razor]
+
+    Root --> Tests[SnowflakeProxy.Core.Tests/<br/>Unit tests]
 ```
 
 ## Development Roadmap
@@ -341,12 +345,10 @@ SnowflakeProxy/
 
 ### Component Hierarchy
 
-```
-ChartComponent (Low-level primitive)
-    ↓
-Domain Components (Reusable business components)
-    ↓
-Pages (Application-specific pages)
+```mermaid
+graph TD
+    A[ChartComponent<br/>Low-level primitive] --> B[Domain Components<br/>Reusable business components]
+    B --> C[Pages<br/>Application-specific pages]
 ```
 
 **ChartComponent**: Accepts inline SQL queries and renders visualizations. Use this for ad-hoc analysis and quick reports.
@@ -355,24 +357,17 @@ Pages (Application-specific pages)
 
 ### Data Flow
 
-```
-Page/Component
-    ↓
-ChartComponent
-    ↓
-IReportService
-    ↓
-ICacheService ←→ ISnowflakeService
-    ↓              ↓
-Cache Hit?     Execute Query
-    ↓              ↓
-    └──────────────┘
-           ↓
-   IVisualizationRenderer
-           ↓
-   VegaLite HTML/JS
-           ↓
-   Browser Rendering
+```mermaid
+flowchart TD
+    A[Page/Component] --> B[ChartComponent]
+    B --> C[IReportService]
+    C --> D{ICacheService}
+    D -->|Cache Miss| E[ISnowflakeService]
+    E -->|Execute Query| F[Query Results]
+    D -->|Cache Hit| F
+    F --> G[IVisualizationRenderer]
+    G --> H[VegaLite HTML/JS]
+    H --> I[Browser Rendering]
 ```
 
 ## Performance Considerations
@@ -427,31 +422,29 @@ dotnet test
 
 **Problem**: Components render but charts don't appear.
 
-**Solution**: Ensure VegaLite scripts are loaded in `App.razor`:
-
-```html
-<head>
-    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
-</head>
-```
+**Solution**: VegaLite scripts are automatically loaded by the `ChartComponent`. If charts still don't render:
+1. Check browser console for JavaScript errors
+2. Ensure you're using interactive render mode (`@rendermode InteractiveServer`)
+3. Verify the query returns valid data
 
 ### Connection Issues
 
 **Problem**: "Failed to connect to Snowflake"
 
 **Solutions**:
-1. Verify `appsettings.json` configuration
-2. Check network connectivity to Snowflake
-3. Validate credentials and warehouse status
-4. Review Snowflake account permissions
+
+1. Verify `.env` configuration and run `./tools/setup-secrets.sh`
+2. Check that user secrets are properly configured with `dotnet user-secrets list`
+3. Check network connectivity to Snowflake
+4. Validate credentials and warehouse status
+5. Review Snowflake account permissions
 
 ### Slow Query Performance
 
 **Problem**: Reports take too long to render.
 
 **Solutions**:
+
 1. Enable caching with `CacheTtl`
 2. Use `LIMIT` clauses for development
 3. Optimize SQL queries with appropriate indexes
@@ -493,6 +486,7 @@ Navigate to `https://localhost:5001` (or the URL shown in the console).
 ## Credits
 
 Built with:
+
 - [.NET 8/9](https://dotnet.microsoft.com/)
 - [Blazor](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
 - [Snowflake .NET Connector](https://github.com/snowflakedb/snowflake-connector-net)

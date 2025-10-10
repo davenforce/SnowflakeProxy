@@ -3,7 +3,7 @@
 
 <ChartComponent
     Query="@QueryString"
-    ChartType="table"
+    Spec="@VegaSpec"
     ShowMetadata="@ShowMetadata"
     CacheTtl="@CacheTtl" />
 
@@ -24,4 +24,42 @@
     [Parameter] public TimeSpan? CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
 
     private string QueryString => $"SELECT * FROM DEV_DATAMART.MART.ENROLLMENTS LIMIT {Limit}";
+
+    /// <summary>
+    /// Custom VegaLite specification for rendering enrollment data as a table
+    /// </summary>
+    private object VegaSpec => new
+    {
+        mark = "rect",
+        encoding = new
+        {
+            y = new
+            {
+                field = "ENROLLMENT_ID",
+                type = "ordinal",
+                axis = new { title = "Enrollment ID" }
+            },
+            x = new
+            {
+                field = "column",
+                type = "nominal",
+                axis = new { title = "" }
+            },
+            color = new
+            {
+                field = "value",
+                type = "nominal",
+                legend = null
+            },
+            text = new
+            {
+                field = "value",
+                type = "nominal"
+            }
+        },
+        config = new
+        {
+            mark = new { fontSize = 12 }
+        }
+    };
 }
