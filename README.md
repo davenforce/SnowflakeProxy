@@ -416,40 +416,6 @@ cd SnowflakeProxy.Core.Tests
 dotnet test
 ```
 
-## Troubleshooting
-
-### Charts Not Rendering
-
-**Problem**: Components render but charts don't appear.
-
-**Solution**: VegaLite scripts are automatically loaded by the `ChartComponent`. If charts still don't render:
-1. Check browser console for JavaScript errors
-2. Ensure you're using interactive render mode (`@rendermode InteractiveServer`)
-3. Verify the query returns valid data
-
-### Connection Issues
-
-**Problem**: "Failed to connect to Snowflake"
-
-**Solutions**:
-
-1. Verify `.env` configuration and run `./tools/setup-secrets.sh`
-2. Check that user secrets are properly configured with `dotnet user-secrets list`
-3. Check network connectivity to Snowflake
-4. Validate credentials and warehouse status
-5. Review Snowflake account permissions
-
-### Slow Query Performance
-
-**Problem**: Reports take too long to render.
-
-**Solutions**:
-
-1. Enable caching with `CacheTtl`
-2. Use `LIMIT` clauses for development
-3. Optimize SQL queries with appropriate indexes
-4. Scale up Snowflake warehouse if needed
-
 ## Examples
 
 See the `SnowflakeProxy.Sample.Server` project for complete working examples:
@@ -465,29 +431,3 @@ dotnet run
 ```
 
 Navigate to `https://localhost:5001` (or the URL shown in the console).
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with tests
-4. Submit a pull request
-
-## License
-
-[Specify your license here]
-
-## Support
-
-- **Documentation**: [See docs/ folder](./docs/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/SnowflakeProxy/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/SnowflakeProxy/discussions)
-
-## Credits
-
-Built with:
-
-- [.NET 8/9](https://dotnet.microsoft.com/)
-- [Blazor](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
-- [Snowflake .NET Connector](https://github.com/snowflakedb/snowflake-connector-net)
-- [VegaLite](https://vega.github.io/vega-lite/)
