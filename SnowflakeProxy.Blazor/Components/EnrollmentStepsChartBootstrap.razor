@@ -1,0 +1,84 @@
+@using SnowflakeProxy.Core.Services
+@using SnowflakeProxy.Core.Models
+
+<ChartComponent
+    Query="@QueryString"
+    Config="@ChartConfig"
+    Renderer="chartjs"
+    ShowMetadata="@ShowMetadata"
+    CacheTtl="@CacheTtl" />
+
+@code {
+    /// <summary>
+    /// Enrollment package ID to filter by
+    /// </summary>
+    [Parameter]
+    public string EnrollmentPackageId { get; set; } = "30205105-6C88-404E-8876-7E9B508259EA";
+
+    /// <summary>
+    /// Show metadata (row count, cache status)
+    /// </summary>
+    [Parameter]
+    public bool ShowMetadata { get; set; } = true;
+
+    /// <summary>
+    /// Cache TTL
+    /// </summary>
+    [Parameter]
+    public TimeSpan? CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
+
+    private string QueryString => $@"
+        SELECT
+            STEP_NUMBER,
+            COUNT(DISTINCT ESIGNINSTANCEID) AS TOTAL_SESSIONS
+        FROM DEV_DATAMART.MART.ENROLLMENT_STEPS
+        WHERE ENROLLMENTPACKAGEID = '{EnrollmentPackageId}'
+        GROUP BY STEP_NUMBER
+        ORDER BY STEP_NUMBER";
+
+    /// <summary>
+    /// Chart.js configuration (JSON-serializable) - line chart variant
+    /// </summary>
+    private VisualizationConfig ChartConfig => new()
+    {
+        Spec = new
+        {
+            type = "line",
+            data = new
+            {
+                labelField = "STEP_NUMBER",
+                datasets = new[]
+                {
+                    new
+                    {
+                        label = "Total Sessions",
+                        dataField = "TOTAL_SESSIONS",
+                        backgroundColor = "rgba(75, 192, 192, 0.2)",
+                        borderColor = "rgba(75, 192, 192, 1)",
+                        borderWidth = 2.0,
+                        fill = true,
+                        tension = 0.4
+                    }
+                }
+            },
+            options = new
+            {
+                responsive = true,
+                plugins = new
+                {
+                    legend = new { position = "top" },
+                    title = new
+                    {
+                        display = true,
+                        text = "Enrollment Steps (Line Chart)"
+                    }
+                }
+            },
+            dimensions = new
+            {
+                width = 600,
+                height = 400
+            }
+        }
+    };
+}

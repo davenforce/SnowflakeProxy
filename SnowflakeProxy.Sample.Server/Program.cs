@@ -7,6 +7,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Add Blazor Bootstrap
+builder.Services.AddBlazorBootstrap();
+
 // Add SnowflakeReporting with real Snowflake connection
 builder.Services.AddSnowflakeReporting(builder.Configuration, "Snowflake");
 

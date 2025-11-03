@@ -1,0 +1,303 @@
+@using System.Data
+@using System.Text.Json
+@using SnowflakeProxy.Core.Models
+@using BlazorBootstrap
+
+@if (Data != null && Spec != null)
+{
+    @RenderChart()
+}
+
+@code {
+    /// <summary>
+    /// The data to visualize
+    /// </summary>
+    [Parameter, EditorRequired]
+    public DataTable? Data { get; set; }
+
+    /// <summary>
+    /// Chart.js configuration spec (JSON-serializable) - same format as ChartJsChart
+    /// </summary>
+    [Parameter, EditorRequired]
+    public object? Spec { get; set; }
+
+    private BarChart? barChart;
+    private LineChart? lineChart;
+    private PieChart? pieChart;
+    private DoughnutChart? doughnutChart;
+    private PolarAreaChart? polarAreaChart;
+
+    private string? _chartType;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Data != null && Spec != null)
+        {
+            await InitializeChart();
+        }
+    }
+
+    private async Task InitializeChart()
+    {
+        var (chartData, chartOptions) = ParseSpecAndBuildChartConfig(Spec!, Data!);
+
+        switch (_chartType)
+        {
+            case "bar":
+                if (barChart != null)
+                    await barChart.InitializeAsync(chartData, chartOptions as BarChartOptions);
+                break;
+            case "line":
+                if (lineChart != null)
+                    await lineChart.InitializeAsync(chartData, chartOptions as LineChartOptions);
+                break;
+            case "pie":
+                if (pieChart != null)
+                    await pieChart.InitializeAsync(chartData, chartOptions as PieChartOptions);
+                break;
+            case "doughnut":
+                if (doughnutChart != null)
+                    await doughnutChart.InitializeAsync(chartData, chartOptions as DoughnutChartOptions);
+                break;
+            case "polararea":
+                if (polarAreaChart != null)
+                    await polarAreaChart.InitializeAsync(chartData, chartOptions as PolarAreaChartOptions);
+                break;
+        }
+    }
+
+    private (ChartData chartData, object chartOptions) ParseSpecAndBuildChartConfig(object spec, DataTable dataTable)
+    {
+        // Serialize and deserialize to get JSON structure
+        var specJson = JsonSerializer.Serialize(spec);
+        var specDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(specJson)
+            ?? throw new InvalidOperationException("Invalid chart spec");
+
+        // Extract type
+        _chartType = specDict.TryGetValue("type", out var typeElement)
+            ? typeElement.GetString()?.ToLowerInvariant() ?? "bar"
+            : "bar";
+
+        // Extract data configuration
+        var dataConfig = specDict.TryGetValue("data", out var dataElement)
+            ? JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(dataElement.GetRawText())
+            : throw new InvalidOperationException("Chart spec must contain 'data' property");
+
+        // Build ChartData
+        var chartData = BuildChartDataFromSpec(dataConfig!, dataTable);
+
+        // Build ChartOptions
+        var chartOptions = BuildChartOptionsFromSpec(specDict);
+
+        return (chartData, chartOptions);
+    }
+
+    private ChartData BuildChartDataFromSpec(Dictionary<string, JsonElement> dataConfig, DataTable dataTable)
+    {
+        // Extract labelField
+        var labelField = dataConfig.TryGetValue("labelField", out var labelElement)
+            ? labelElement.GetString()
+            : dataTable.Columns[0].ColumnName;
+
+        // Build labels array
+        var labels = new List<string>();
+        foreach (DataRow row in dataTable.Rows)
+        {
+            labels.Add(row[labelField!]?.ToString() ?? "");
+        }
+
+        // Extract datasets configuration
+        var datasetsConfig = dataConfig.TryGetValue("datasets", out var datasetsElement)
+            ? JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(datasetsElement.GetRawText())
+            : new List<Dictionary<string, JsonElement>>();
+
+        // Build datasets
+        var datasets = new List<IChartDataset>();
+        foreach (var datasetConfig in datasetsConfig!)
+        {
+            var dataset = BuildDatasetFromSpec(datasetConfig, dataTable);
+            datasets.Add(dataset);
+        }
+
+        return new ChartData { Labels = labels, Datasets = datasets };
+    }
+
+    private IChartDataset BuildDatasetFromSpec(Dictionary<string, JsonElement> datasetConfig, DataTable dataTable)
+    {
+        // Extract dataField
+        var dataField = datasetConfig.TryGetValue("dataField", out var dataFieldElement)
+            ? dataFieldElement.GetString()
+            : dataTable.Columns[1].ColumnName;
+
+        // Extract data values from DataTable
+        var dataValues = new List<double?>();
+        foreach (DataRow row in dataTable.Rows)
+        {
+            var value = row[dataField!];
+            dataValues.Add(value != DBNull.Value ? Convert.ToDouble(value) : null);
+        }
+
+        // Extract label
+        var label = datasetConfig.TryGetValue("label", out var labelElement)
+            ? labelElement.GetString()
+            : dataField;
+
+        // Extract styling properties
+        var backgroundColor = datasetConfig.TryGetValue("backgroundColor", out var bgElement)
+            ? JsonSerializer.Deserialize<List<string>>(bgElement.GetRawText())
+            : new List<string> { "rgba(54, 162, 235, 0.8)" };
+
+        var borderColor = datasetConfig.TryGetValue("borderColor", out var bcElement)
+            ? JsonSerializer.Deserialize<List<string>>(bcElement.GetRawText())
+            : new List<string> { "rgba(54, 162, 235, 1)" };
+
+        var borderWidth = datasetConfig.TryGetValue("borderWidth", out var bwElement)
+            ? JsonSerializer.Deserialize<List<double>>(bwElement.GetRawText())?.Select(d => d).ToList()
+            : new List<double> { 1 };
+
+        // Build dataset based on chart type
+        return _chartType switch
+        {
+            "bar" => new BarChartDataset
+            {
+                Label = label,
+                Data = dataValues,
+                BackgroundColor = backgroundColor,
+                BorderColor = borderColor,
+                BorderWidth = borderWidth
+            },
+            "line" => new LineChartDataset
+            {
+                Label = label,
+                Data = dataValues,
+                BackgroundColor = backgroundColor?.FirstOrDefault() ?? "rgba(75, 192, 192, 0.2)",
+                BorderColor = borderColor?.FirstOrDefault() ?? "rgba(75, 192, 192, 1)",
+                BorderWidth = borderWidth?.FirstOrDefault() ?? 2,
+                Fill = datasetConfig.TryGetValue("fill", out var fillElement) && fillElement.GetBoolean(),
+                Tension = datasetConfig.TryGetValue("tension", out var tensionElement) ? tensionElement.GetDouble() : 0
+            },
+            "pie" => new PieChartDataset
+            {
+                Label = label,
+                Data = dataValues,
+                BackgroundColor = backgroundColor ?? GenerateDefaultColors(dataValues.Count)
+            },
+            "doughnut" => new DoughnutChartDataset
+            {
+                Label = label,
+                Data = dataValues,
+                BackgroundColor = backgroundColor ?? GenerateDefaultColors(dataValues.Count)
+            },
+            "polararea" => new PolarAreaChartDataset
+            {
+                Label = label,
+                Data = dataValues,
+                BackgroundColor = backgroundColor ?? GenerateDefaultColors(dataValues.Count)
+            },
+            _ => throw new NotSupportedException($"Unsupported chart type: {_chartType}")
+        };
+    }
+
+    private object BuildChartOptionsFromSpec(Dictionary<string, JsonElement> specDict)
+    {
+        // Extract options from spec
+        var responsive = true; // default
+
+        if (specDict.TryGetValue("options", out var optionsElement))
+        {
+            var optionsDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(optionsElement.GetRawText());
+            if (optionsDict?.TryGetValue("responsive", out var respElement) == true)
+            {
+                responsive = respElement.GetBoolean();
+            }
+        }
+
+        return _chartType switch
+        {
+            "bar" => new BarChartOptions { Responsive = responsive },
+            "line" => new LineChartOptions { Responsive = responsive },
+            "pie" => new PieChartOptions { Responsive = responsive },
+            "doughnut" => new DoughnutChartOptions { Responsive = responsive },
+            "polararea" => new PolarAreaChartOptions { Responsive = responsive },
+            _ => throw new NotSupportedException($"Unsupported chart type: {_chartType}")
+        };
+    }
+
+    private RenderFragment RenderChart() => builder =>
+    {
+        // Parse spec to get chart type before rendering
+        if (Spec != null && string.IsNullOrEmpty(_chartType))
+        {
+            var specJson = JsonSerializer.Serialize(Spec);
+            var specDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(specJson);
+            _chartType = specDict?.TryGetValue("type", out var typeElement) == true
+                ? typeElement.GetString()?.ToLowerInvariant() ?? "bar"
+                : "bar";
+        }
+
+        switch (_chartType)
+        {
+            case "bar":
+                builder.OpenComponent<BarChart>(0);
+                builder.AddAttribute(1, "Width", 600);
+                builder.AddAttribute(2, "Height", 400);
+                builder.AddComponentReferenceCapture(3, compRef => barChart = (BarChart)compRef);
+                builder.CloseComponent();
+                break;
+
+            case "line":
+                builder.OpenComponent<LineChart>(0);
+                builder.AddAttribute(1, "Width", 600);
+                builder.AddAttribute(2, "Height", 400);
+                builder.AddComponentReferenceCapture(3, compRef => lineChart = (LineChart)compRef);
+                builder.CloseComponent();
+                break;
+
+            case "pie":
+                builder.OpenComponent<PieChart>(0);
+                builder.AddAttribute(1, "Width", 600);
+                builder.AddAttribute(2, "Height", 400);
+                builder.AddComponentReferenceCapture(3, compRef => pieChart = (PieChart)compRef);
+                builder.CloseComponent();
+                break;
+
+            case "doughnut":
+                builder.OpenComponent<DoughnutChart>(0);
+                builder.AddAttribute(1, "Width", 600);
+                builder.AddAttribute(2, "Height", 400);
+                builder.AddComponentReferenceCapture(3, compRef => doughnutChart = (DoughnutChart)compRef);
+                builder.CloseComponent();
+                break;
+
+            case "polararea":
+                builder.OpenComponent<PolarAreaChart>(0);
+                builder.AddAttribute(1, "Width", 600);
+                builder.AddAttribute(2, "Height", 400);
+                builder.AddComponentReferenceCapture(3, compRef => polarAreaChart = (PolarAreaChart)compRef);
+                builder.CloseComponent();
+                break;
+
+            default:
+                builder.AddContent(0, $"Unsupported chart type: {_chartType}");
+                break;
+        }
+    };
+
+    private List<string> GenerateDefaultColors(int count)
+    {
+        var colors = new List<string>
+        {
+            "rgba(255, 99, 132, 0.8)",
+            "rgba(54, 162, 235, 0.8)",
+            "rgba(255, 206, 86, 0.8)",
+            "rgba(75, 192, 192, 0.8)",
+            "rgba(153, 102, 255, 0.8)",
+            "rgba(255, 159, 64, 0.8)"
+        };
+
+        while (colors.Count < count)
+            colors.AddRange(colors);
+
+        return colors.Take(count).ToList();
+    }
+}

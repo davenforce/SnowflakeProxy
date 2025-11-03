@@ -1,6 +1,7 @@
 @page "/reports"
 @rendermode InteractiveServer
 @using SnowflakeProxy.Blazor.Components
+@using SnowflakeProxy.Core.Models
 
 <PageTitle>Snowflake Reports</PageTitle>
 
@@ -17,7 +18,8 @@
 
                 <ChartComponent
                     Query="SELECT CURRENT_WAREHOUSE() as warehouse, CURRENT_DATABASE() as database, CURRENT_SCHEMA() as schema, CURRENT_TIMESTAMP() as timestamp"
-                    ChartType="table"
+                    Config="@(new VisualizationConfig { Type = "table" })"
+                    Renderer="vega-lite"
                     ShowMetadata="true"
                     CacheTtl="TimeSpan.FromMinutes(5)" />
             </div>
@@ -59,7 +61,8 @@
                     <div class="mt-3">
                         <ChartComponent
                             Query="@customQuery"
-                            ChartType="@customChartType"
+                            Config="@(new VisualizationConfig { Type = customChartType })"
+                            Renderer="vega-lite"
                             ShowMetadata="true"
                             CacheTtl="TimeSpan.FromMinutes(5)" />
                     </div>
@@ -79,11 +82,87 @@
                     <li><code>SELECT CURRENT_WAREHOUSE(), CURRENT_DATABASE(), CURRENT_SCHEMA()</code></li>
                     <li><code>SHOW TABLES LIMIT 5</code></li>
                     <li><code>SELECT * FROM INFORMATION_SCHEMA.TABLES LIMIT 10</code></li>
+                    <li><code>SELECT * FROM DEV_DATAMART.MART.ENROLLMENT_STEPS LIMIT 100</code></li>
                 </ul>
 
                 <p class="mt-3">
                     <strong>Chart Types:</strong> Choose from table, bar, line, pie, scatter, area, or point charts.
                 </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h3>Blazor Bootstrap Renderer Example</h3>
+            </div>
+            <div class="card-body">
+                <p>Same data, different renderer! Using <code>Renderer="blazor-bootstrap"</code></p>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Bar Chart (Blazor Bootstrap)</h5>
+                        <ChartComponent
+                            Query="SELECT 'Q1' as Quarter, 100 as Revenue UNION ALL SELECT 'Q2', 150 UNION ALL SELECT 'Q3', 200 UNION ALL SELECT 'Q4', 175"
+                            Config="@(new VisualizationConfig {
+                                Spec = new {
+                                    type = "bar",
+                                    data = new {
+                                        labelField = "Quarter",
+                                        datasets = new[] {
+                                            new {
+                                                label = "Quarterly Revenue",
+                                                dataField = "Revenue",
+                                                backgroundColor = new[] { "rgba(54, 162, 235, 0.8)" },
+                                                borderColor = new[] { "rgba(54, 162, 235, 1)" },
+                                                borderWidth = new[] { 1.0 }
+                                            }
+                                        }
+                                    },
+                                    options = new { responsive = true }
+                                }
+                            })"
+                            Renderer="blazor-bootstrap"
+                            ShowMetadata="true"
+                            CacheTtl="TimeSpan.FromMinutes(5)" />
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5>Pie Chart (Blazor Bootstrap)</h5>
+                        <ChartComponent
+                            Query="SELECT 'Product A' as Product, 35 as Sales UNION ALL SELECT 'Product B', 25 UNION ALL SELECT 'Product C', 40"
+                            Config="@(new VisualizationConfig {
+                                Spec = new {
+                                    type = "pie",
+                                    data = new {
+                                        labelField = "Product",
+                                        datasets = new[] {
+                                            new {
+                                                label = "Product Sales Distribution",
+                                                dataField = "Sales",
+                                                backgroundColor = new[] { "rgba(255, 99, 132, 0.8)", "rgba(54, 162, 235, 0.8)", "rgba(255, 206, 86, 0.8)" }
+                                            }
+                                        }
+                                    },
+                                    options = new { responsive = true }
+                                }
+                            })"
+                            Renderer="blazor-bootstrap"
+                            ShowMetadata="true"
+                            CacheTtl="TimeSpan.FromMinutes(5)" />
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3">
+                    <strong>💡 Tip:</strong> You can switch between renderers by changing the <code>Renderer</code> parameter:
+                    <ul class="mb-0 mt-2">
+                        <li><code>Renderer="vega-lite"</code> - Uses Vega-Lite (declarative grammar)</li>
+                        <li><code>Renderer="blazor-bootstrap"</code> - Uses Blazor Bootstrap charts (Chart.js)</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>

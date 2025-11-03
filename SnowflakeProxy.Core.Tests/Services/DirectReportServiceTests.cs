@@ -10,219 +10,166 @@ public class DirectReportServiceTests
 {
     private readonly Mock<ISnowflakeService> _mockSnowflakeService;
     private readonly Mock<ICacheService> _mockCacheService;
-    private readonly Mock<IVisualizationRenderer> _mockRenderer;
     private readonly DirectReportService _reportService;
 
     public DirectReportServiceTests()
     {
         _mockSnowflakeService = new Mock<ISnowflakeService>();
         _mockCacheService = new Mock<ICacheService>();
-        _mockRenderer = new Mock<IVisualizationRenderer>();
 
         _reportService = new DirectReportService(
             _mockSnowflakeService.Object,
-            _mockCacheService.Object,
-            _mockRenderer.Object);
+            _mockCacheService.Object);
     }
 
     [Fact]
-    public async Task GenerateReportAsync_WithConfig_ShouldExecuteQueryAndRender()
+    public async Task ExecuteQueryAsync_WithQuery_ShouldExecuteAndReturnData()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "test-report",
-            Query = "SELECT * FROM test",
-            Parameters = new Dictionary<string, object>(),
-            Visualization = new VisualizationConfig { Type = "bar" }
-        };
-
+        var query = "SELECT * FROM test";
         var dataTable = CreateSampleDataTable();
-        var renderedOutput = "<div>Chart</div>";
 
         _mockCacheService
-            .Setup(x => x.GetAsync<ReportResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ReportResult?)null);
+            .Setup(x => x.GetAsync<QueryResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((QueryResult?)null);
 
         _mockSnowflakeService
-            .Setup(x => x.ExecuteQueryAsync(config.Query, config.Parameters, It.IsAny<CancellationToken>()))
+            .Setup(x => x.ExecuteQueryAsync(query, It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataTable);
 
-        _mockRenderer
-            .Setup(x => x.RenderAsync(dataTable, config.Visualization, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(renderedOutput);
-
         // Act
-        var result = await _reportService.GenerateReportAsync(config);
+        var result = await _reportService.ExecuteQueryAsync(query);
 
         // Assert
         result.Should().NotBeNull();
         result.Data.Should().BeSameAs(dataTable);
-        result.RenderedOutput.Should().Be(renderedOutput);
         result.FromCache.Should().BeFalse();
 
         _mockSnowflakeService.Verify(
-            x => x.ExecuteQueryAsync(config.Query, config.Parameters, It.IsAny<CancellationToken>()),
-            Times.Once);
-
-        _mockRenderer.Verify(
-            x => x.RenderAsync(dataTable, config.Visualization, It.IsAny<CancellationToken>()),
+            x => x.ExecuteQueryAsync(query, It.IsAny<Dictionary<string, object>>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task GenerateReportAsync_WithCacheTtl_ShouldCacheResult()
+    public async Task ExecuteQueryAsync_WithCacheTtl_ShouldCacheResult()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "test-report",
-            Query = "SELECT * FROM test",
-            CacheTtl = TimeSpan.FromMinutes(10)
-        };
-
+        var query = "SELECT * FROM test";
+        var cacheTtl = TimeSpan.FromMinutes(10);
         var dataTable = CreateSampleDataTable();
-        var renderedOutput = "<div>Chart</div>";
 
         _mockCacheService
-            .Setup(x => x.GetAsync<ReportResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ReportResult?)null);
+            .Setup(x => x.GetAsync<QueryResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((QueryResult?)null);
 
         _mockSnowflakeService
             .Setup(x => x.ExecuteQueryAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataTable);
 
-        _mockRenderer
-            .Setup(x => x.RenderAsync(It.IsAny<DataTable>(), It.IsAny<VisualizationConfig>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(renderedOutput);
-
         // Act
-        await _reportService.GenerateReportAsync(config);
+        await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
 
         // Assert
         _mockCacheService.Verify(
             x => x.SetAsync(
                 It.IsAny<string>(),
-                It.IsAny<ReportResult>(),
-                config.CacheTtl,
+                It.IsAny<QueryResult>(),
+                cacheTtl,
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
     [Fact]
-    public async Task GenerateReportAsync_WithoutCacheTtl_ShouldNotCacheResult()
+    public async Task ExecuteQueryAsync_WithoutCacheTtl_ShouldNotCacheResult()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "test-report",
-            Query = "SELECT * FROM test",
-            CacheTtl = null
-        };
-
+        var query = "SELECT * FROM test";
         var dataTable = CreateSampleDataTable();
 
         _mockCacheService
-            .Setup(x => x.GetAsync<ReportResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ReportResult?)null);
+            .Setup(x => x.GetAsync<QueryResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((QueryResult?)null);
 
         _mockSnowflakeService
             .Setup(x => x.ExecuteQueryAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataTable);
 
-        _mockRenderer
-            .Setup(x => x.RenderAsync(It.IsAny<DataTable>(), It.IsAny<VisualizationConfig>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<div>Chart</div>");
-
         // Act
-        await _reportService.GenerateReportAsync(config);
+        await _reportService.ExecuteQueryAsync(query, null, null);
 
         // Assert
         _mockCacheService.Verify(
             x => x.SetAsync(
                 It.IsAny<string>(),
-                It.IsAny<ReportResult>(),
+                It.IsAny<QueryResult>(),
                 It.IsAny<TimeSpan?>(),
                 It.IsAny<CancellationToken>()),
+            Times.Never);
+
+        _mockCacheService.Verify(
+            x => x.GetAsync<QueryResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
     [Fact]
-    public async Task GenerateReportAsync_WhenCacheHit_ShouldReturnCachedResult()
+    public async Task ExecuteQueryAsync_WhenCacheHit_ShouldReturnCachedResult()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "test-report",
-            Query = "SELECT * FROM test"
-        };
+        var query = "SELECT * FROM test";
+        var cacheTtl = TimeSpan.FromMinutes(5);
 
-        var cachedResult = new ReportResult
+        var cachedResult = new QueryResult
         {
             Data = CreateSampleDataTable(),
-            RenderedOutput = "<div>Cached Chart</div>",
-            FromCache = false
+            FromCache = false,
+            ExecutedAt = DateTime.UtcNow.AddMinutes(-2)
         };
 
         _mockCacheService
-            .Setup(x => x.GetAsync<ReportResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetAsync<QueryResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(cachedResult);
 
         // Act
-        var result = await _reportService.GenerateReportAsync(config);
+        var result = await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
 
         // Assert
         result.Should().NotBeNull();
         result.FromCache.Should().BeTrue();
-        result.RenderedOutput.Should().Be(cachedResult.RenderedOutput);
+        result.Data.Should().BeSameAs(cachedResult.Data);
 
         _mockSnowflakeService.Verify(
             x => x.ExecuteQueryAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>?>(), It.IsAny<CancellationToken>()),
             Times.Never);
-
-        _mockRenderer.Verify(
-            x => x.RenderAsync(It.IsAny<DataTable>(), It.IsAny<VisualizationConfig>(), It.IsAny<CancellationToken>()),
-            Times.Never);
     }
 
     [Fact]
-    public async Task GenerateReportAsync_WithParameters_ShouldPassParametersToQuery()
+    public async Task ExecuteQueryAsync_WithParameters_ShouldPassParametersToQuery()
     {
         // Arrange
+        var query = "SELECT * FROM sales WHERE year = @year AND region = @region";
         var parameters = new Dictionary<string, object>
         {
             { "year", 2024 },
             { "region", "North" }
         };
 
-        var config = new ReportConfig
-        {
-            ReportId = "test-report",
-            Query = "SELECT * FROM sales WHERE year = @year AND region = @region",
-            Parameters = parameters
-        };
-
         var dataTable = CreateSampleDataTable();
 
         _mockCacheService
-            .Setup(x => x.GetAsync<ReportResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ReportResult?)null);
+            .Setup(x => x.GetAsync<QueryResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((QueryResult?)null);
 
         _mockSnowflakeService
             .Setup(x => x.ExecuteQueryAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataTable);
 
-        _mockRenderer
-            .Setup(x => x.RenderAsync(It.IsAny<DataTable>(), It.IsAny<VisualizationConfig>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<div>Chart</div>");
-
         // Act
-        await _reportService.GenerateReportAsync(config);
+        await _reportService.ExecuteQueryAsync(query, parameters);
 
         // Assert
         _mockSnowflakeService.Verify(
             x => x.ExecuteQueryAsync(
-                config.Query,
+                query,
                 It.Is<Dictionary<string, object>>(p =>
                     p.ContainsKey("year") &&
                     p.ContainsKey("region") &&
@@ -233,136 +180,59 @@ public class DirectReportServiceTests
     }
 
     [Fact]
-    public async Task GenerateReportAsync_WithReportId_ShouldLoadConfigFromFile()
+    public async Task ExecuteQueryAsync_EmptyQuery_ShouldThrowArgumentException()
     {
-        // Arrange
-        var reportId = "sales-dashboard";
-        var parameters = new Dictionary<string, object> { { "year", 2024 } };
-
-        // Create a test config file
-        var configPath = Path.Combine("reports", $"{reportId}.json");
-        Directory.CreateDirectory("reports");
-
-        var configJson = @"{
-            ""reportId"": ""sales-dashboard"",
-            ""query"": ""SELECT * FROM sales"",
-            ""parameters"": {},
-            ""visualization"": {
-                ""type"": ""bar""
-            },
-            ""cacheTtl"": ""00:15:00""
-        }";
-
-        await File.WriteAllTextAsync(configPath, configJson);
-
-        var dataTable = CreateSampleDataTable();
-
-        _mockCacheService
-            .Setup(x => x.GetAsync<ReportResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ReportResult?)null);
-
-        _mockSnowflakeService
-            .Setup(x => x.ExecuteQueryAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(dataTable);
-
-        _mockRenderer
-            .Setup(x => x.RenderAsync(It.IsAny<DataTable>(), It.IsAny<VisualizationConfig>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<div>Chart</div>");
-
-        try
-        {
-            // Act
-            var result = await _reportService.GenerateReportAsync(reportId, parameters);
-
-            // Assert
-            result.Should().NotBeNull();
-            _mockSnowflakeService.Verify(
-                x => x.ExecuteQueryAsync("SELECT * FROM sales", It.IsAny<Dictionary<string, object>?>(), It.IsAny<CancellationToken>()),
-                Times.Once);
-        }
-        finally
-        {
-            // Cleanup
-            if (File.Exists(configPath))
-                File.Delete(configPath);
-            if (Directory.Exists("reports") && !Directory.EnumerateFileSystemEntries("reports").Any())
-                Directory.Delete("reports");
-        }
-    }
-
-    [Fact]
-    public async Task GenerateReportAsync_WithReportIdNotFound_ShouldThrowFileNotFoundException()
-    {
-        // Arrange
-        var reportId = "nonexistent-report";
-
         // Act & Assert
-        await Assert.ThrowsAsync<FileNotFoundException>(
-            async () => await _reportService.GenerateReportAsync(reportId));
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await _reportService.ExecuteQueryAsync(""));
     }
 
     [Fact]
-    public async Task GenerateReportAsync_WithRuntimeParameters_ShouldMergeWithConfigParameters()
+    public async Task ExecuteQueryAsync_NullQuery_ShouldThrowArgumentException()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(
+            async () => await _reportService.ExecuteQueryAsync(null!));
+    }
+
+    [Fact]
+    public async Task ExecuteQueryAsync_SameQueryMultipleTimes_ShouldUseSameCacheKey()
     {
         // Arrange
-        var reportId = "test-report";
-        var runtimeParams = new Dictionary<string, object> { { "region", "South" } };
-
-        // Create test config with default parameters
-        var configPath = Path.Combine("reports", $"{reportId}.json");
-        Directory.CreateDirectory("reports");
-
-        var configJson = @"{
-            ""reportId"": ""test-report"",
-            ""query"": ""SELECT * FROM sales"",
-            ""parameters"": {
-                ""year"": 2023,
-                ""region"": ""North""
-            },
-            ""visualization"": {
-                ""type"": ""bar""
-            }
-        }";
-
-        await File.WriteAllTextAsync(configPath, configJson);
-
+        var query = "SELECT * FROM test";
+        var cacheTtl = TimeSpan.FromMinutes(5);
         var dataTable = CreateSampleDataTable();
 
+        string? capturedCacheKey = null;
+
         _mockCacheService
-            .Setup(x => x.GetAsync<ReportResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ReportResult?)null);
+            .Setup(x => x.GetAsync<QueryResult>(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((QueryResult?)null);
 
         _mockSnowflakeService
             .Setup(x => x.ExecuteQueryAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, object>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(dataTable);
 
-        _mockRenderer
-            .Setup(x => x.RenderAsync(It.IsAny<DataTable>(), It.IsAny<VisualizationConfig>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("<div>Chart</div>");
+        _mockCacheService
+            .Setup(x => x.SetAsync(It.IsAny<string>(), It.IsAny<QueryResult>(), It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, QueryResult, TimeSpan?, CancellationToken>((key, _, _, _) =>
+            {
+                if (capturedCacheKey == null)
+                    capturedCacheKey = key;
+                else
+                    capturedCacheKey.Should().Be(key); // Same query should use same cache key
+            })
+            .Returns(Task.CompletedTask);
 
-        try
-        {
-            // Act
-            await _reportService.GenerateReportAsync(reportId, runtimeParams);
+        // Act
+        await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
+        await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
 
-            // Assert - Runtime parameters should override config parameters
-            _mockSnowflakeService.Verify(
-                x => x.ExecuteQueryAsync(
-                    It.IsAny<string>(),
-                    It.Is<Dictionary<string, object>>(p =>
-                        (string)p["region"] == "South" && // Runtime override
-                        (long)p["year"] == 2023), // From config
-                    It.IsAny<CancellationToken>()),
-                Times.Once);
-        }
-        finally
-        {
-            // Cleanup
-            if (File.Exists(configPath))
-                File.Delete(configPath);
-            if (Directory.Exists("reports") && !Directory.EnumerateFileSystemEntries("reports").Any())
-                Directory.Delete("reports");
-        }
+        // Assert
+        capturedCacheKey.Should().NotBeNull();
+        _mockCacheService.Verify(
+            x => x.SetAsync(It.IsAny<string>(), It.IsAny<QueryResult>(), cacheTtl, It.IsAny<CancellationToken>()),
+            Times.Exactly(2));
     }
 
     private DataTable CreateSampleDataTable()

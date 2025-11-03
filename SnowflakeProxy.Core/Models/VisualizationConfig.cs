@@ -2,33 +2,25 @@ namespace SnowflakeProxy.Core.Models;
 
 /// <summary>
 /// Configuration for rendering visualizations from query results.
-/// Supports both simple built-in chart types and advanced custom Vega-Lite specs.
+/// This config is passed to chart renderers in the Blazor layer.
 /// </summary>
 public record VisualizationConfig
 {
     /// <summary>
     /// Type of visualization to render.
-    /// Built-in types: "table", "bar", "line", "scatter", "pie", "area", "point"
-    /// For advanced use: "custom" with a Spec property containing full Vega-Lite JSON
+    /// Common types: "table", "bar", "line", "scatter", "pie", "area"
+    /// Specific renderers may support additional types (e.g., "doughnut", "polarArea")
     /// </summary>
     public string Type { get; init; } = "table";
 
     /// <summary>
-    /// Custom Vega-Lite specification (JSON object).
-    /// When provided, this takes precedence over Type.
-    /// The library will automatically inject your query data into the spec's "data.values" field.
-    /// Example:
-    /// <code>
-    /// Spec = new {
-    ///     mark = "circle",
-    ///     encoding = new {
-    ///         x = new { field = "column1", type = "quantitative", scale = new { zero = false } },
-    ///         y = new { field = "column2", type = "quantitative" },
-    ///         size = new { field = "column3", type = "quantitative" },
-    ///         color = new { field = "category", type = "nominal" }
-    ///     }
-    /// }
-    /// </code>
+    /// Renderer-specific advanced configuration (optional).
+    /// Interpretation depends on the chart renderer:
+    ///
+    /// - Vega-Lite renderer: Expects a Vega-Lite specification object
+    /// - Blazor Bootstrap renderer: Expects ChartOptions-derived objects
+    ///
+    /// When provided, this overrides the simple Type property and gives full control.
     /// </summary>
     public object? Spec { get; init; }
 

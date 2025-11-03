@@ -1,0 +1,82 @@
+@using SnowflakeProxy.Core.Services
+@using SnowflakeProxy.Core.Models
+
+<ChartComponent
+    Query="@QueryString"
+    Config="@ChartConfig"
+    Renderer="chartjs"
+    ShowMetadata="@ShowMetadata"
+    CacheTtl="@CacheTtl" />
+
+@code {
+    /// <summary>
+    /// Enrollment package ID to filter by
+    /// </summary>
+    [Parameter]
+    public string EnrollmentPackageId { get; set; } = "30205105-6C88-404E-8876-7E9B508259EA";
+
+    /// <summary>
+    /// Show metadata (row count, cache status)
+    /// </summary>
+    [Parameter]
+    public bool ShowMetadata { get; set; } = true;
+
+    /// <summary>
+    /// Cache TTL
+    /// </summary>
+    [Parameter]
+    public TimeSpan? CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
+
+    private string QueryString => $@"
+        SELECT
+            STEP_NUMBER,
+            COUNT(DISTINCT ESIGNINSTANCEID) AS TOTAL_SESSIONS
+        FROM DEV_DATAMART.MART.ENROLLMENT_STEPS
+        WHERE ENROLLMENTPACKAGEID = '{EnrollmentPackageId}'
+        GROUP BY STEP_NUMBER
+        ORDER BY STEP_NUMBER";
+
+    /// <summary>
+    /// Chart.js configuration (JSON-serializable) - direct JSInterop
+    /// </summary>
+    private VisualizationConfig ChartConfig => new()
+    {
+        Spec = new
+        {
+            type = "bar",
+            data = new
+            {
+                labelField = "STEP_NUMBER",
+                datasets = new[]
+                {
+                    new
+                    {
+                        label = "Total Sessions",
+                        dataField = "TOTAL_SESSIONS",
+                        backgroundColor = new[] { "rgba(54, 162, 235, 0.8)" },
+                        borderColor = new[] { "rgba(54, 162, 235, 1)" },
+                        borderWidth = new[] { 1.0 }
+                    }
+                }
+            },
+            options = new
+            {
+                responsive = true,
+                plugins = new
+                {
+                    legend = new { position = "top" },
+                    title = new
+                    {
+                        display = true,
+                        text = "Enrollment Steps (Chart.js)"
+                    }
+                }
+            },
+            dimensions = new
+            {
+                width = 600,
+                height = 400
+            }
+        }
+    };
+}

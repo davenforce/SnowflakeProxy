@@ -1,0 +1,183 @@
+@using System.Data
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using SnowflakeProxy.Core.Models
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<div>
+    <canvas id="@_canvasId"></canvas>
+</div>
+
+@code {
+    /// <summary>
+    /// The data to visualize
+    /// </summary>
+    [Parameter, EditorRequired]
+    public DataTable? Data { get; set; }
+
+    /// <summary>
+    /// Chart.js configuration spec (JSON-serializable)
+    /// </summary>
+    [Parameter, EditorRequired]
+    public object? Spec { get; set; }
+
+    private readonly string _canvasId = $"chart-{Guid.NewGuid():N}";
+    private bool _initialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Data != null && Spec != null)
+        {
+            await RenderChart();
+            _initialized = true;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_initialized && Data != null && Spec != null)
+        {
+            await RenderChart();
+        }
+    }
+
+    private async Task RenderChart()
+    {
+        if (Data == null || Spec == null)
+            return;
+
+        // Convert spec to Chart.js config with data injected
+        var config = BuildChartConfig(Spec, Data);
+
+        // Serialize to JSON for JSInterop
+        var configJson = JsonSerializer.Serialize(config, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        // Call Chart.js via JSInterop
+        await JSRuntime.InvokeVoidAsync("ChartJsInterop.initialize", _canvasId, JsonSerializer.Deserialize<object>(configJson));
+    }
+
+    private object BuildChartConfig(object spec, DataTable data)
+    {
+        // Deserialize the spec
+        var specJson = JsonSerializer.Serialize(spec);
+        var specDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(specJson)
+            ?? throw new InvalidOperationException("Invalid Chart.js spec");
+
+        // Extract type
+        var type = specDict.TryGetValue("type", out var typeElement)
+            ? typeElement.GetString() ?? "bar"
+            : "bar";
+
+        // Extract data configuration
+        var dataConfig = specDict.TryGetValue("data", out var dataElement)
+            ? JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(dataElement.GetRawText())
+            : new Dictionary<string, JsonElement>();
+
+        // Build Chart.js data from DataTable
+        var chartData = BuildChartData(dataConfig, data);
+
+        // Extract options
+        var options = specDict.TryGetValue("options", out var optionsElement)
+            ? JsonSerializer.Deserialize<object>(optionsElement.GetRawText())
+            : new { responsive = true };
+
+        // Extract dimensions (custom property, not Chart.js native)
+        int? width = null;
+        int? height = null;
+        if (specDict.TryGetValue("dimensions", out var dimensionsElement))
+        {
+            var dims = JsonSerializer.Deserialize<Dictionary<string, int>>(dimensionsElement.GetRawText());
+            width = dims?.GetValueOrDefault("width");
+            height = dims?.GetValueOrDefault("height");
+        }
+
+        return new
+        {
+            type = type,
+            data = chartData,
+            options = options
+        };
+    }
+
+    private object BuildChartData(Dictionary<string, JsonElement>? dataConfig, DataTable dataTable)
+    {
+        if (dataConfig == null)
+            throw new InvalidOperationException("Data configuration is required");
+
+        // Extract labelField
+        var labelField = dataConfig.TryGetValue("labelField", out var labelElement)
+            ? labelElement.GetString()
+            : dataTable.Columns[0].ColumnName;
+
+        // Build labels array
+        var labels = new List<string>();
+        foreach (DataRow row in dataTable.Rows)
+        {
+            labels.Add(row[labelField!]?.ToString() ?? "");
+        }
+
+        // Extract datasets configuration
+        var datasetsConfig = dataConfig.TryGetValue("datasets", out var datasetsElement)
+            ? JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(datasetsElement.GetRawText())
+            : new List<Dictionary<string, JsonElement>>();
+
+        // Build datasets with actual data
+        var datasets = new List<object>();
+        foreach (var datasetConfig in datasetsConfig!)
+        {
+            var dataField = datasetConfig.TryGetValue("dataField", out var dataFieldElement)
+                ? dataFieldElement.GetString()
+                : dataTable.Columns[1].ColumnName;
+
+            // Extract data values from DataTable
+            var dataValues = new List<double?>();
+            foreach (DataRow row in dataTable.Rows)
+            {
+                var value = row[dataField!];
+                dataValues.Add(value != DBNull.Value ? Convert.ToDouble(value) : null);
+            }
+
+            // Build dataset object with data + styling
+            var dataset = new Dictionary<string, object>
+            {
+                ["data"] = dataValues
+            };
+
+            // Copy other properties from config (label, backgroundColor, etc.)
+            foreach (var kvp in datasetConfig)
+            {
+                if (kvp.Key != "dataField")
+                {
+                    dataset[kvp.Key] = JsonSerializer.Deserialize<object>(kvp.Value.GetRawText())!;
+                }
+            }
+
+            datasets.Add(dataset);
+        }
+
+        return new
+        {
+            labels = labels,
+            datasets = datasets
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("ChartJsInterop.destroy", _canvasId);
+            }
+            catch
+            {
+                // Ignore errors during disposal
+            }
+        }
+    }
+}

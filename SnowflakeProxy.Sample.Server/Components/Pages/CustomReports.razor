@@ -8,35 +8,79 @@
 <p class="lead">Reusable domain-specific report components</p>
 
 <div class="row mb-4">
-    <div class="col-md-12">
+    <div class="col-md-4">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h3 class="mb-0">📋 Enrollment Steps</h3>
+                <h3 class="mb-0">📋 Vega-Lite</h3>
             </div>
             <div class="card-body">
-                <p>Reusable component: <code>&lt;EnrollmentStepsChart /&gt;</code></p>
-
-                <EnrollmentStepsChart />
-
+                <EnrollmentStepsChartVegaLite />
                 <details class="mt-3">
-                    <summary class="btn btn-sm btn-outline-secondary">View Component Source</summary>
-                    <pre class="mt-2 bg-light p-3">// Usage:
-&lt;EnrollmentStepsTable Limit="20" /&gt;
-
-// Definition (SnowflakeProxy.Blazor/Components/EnrollmentStepsTable.razor):
-&lt;ChartComponent
-    Query="@@QueryString"
-    ChartType="table" /&gt;
-
-@@code {
-    [Parameter] public int Limit { get; set; } = 20;
-
-    private string QueryString =>
-        $"SELECT * FROM DEV_DATAMART.MART.ENROLLMENT_STEPS LIMIT {Limit}";
+                    <summary class="btn btn-sm btn-outline-secondary">View Source</summary>
+                    <pre class="mt-2 bg-light p-3 small">Renderer="vega-lite"
+Spec = new {
+  mark = "bar",
+  encoding = new {
+    x = new { field = "STEP_NUMBER", ... },
+    y = new { field = "TOTAL_SESSIONS", ... }
+  }
 }</pre>
                 </details>
             </div>
         </div>
     </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h3 class="mb-0">📋 Chart.js Direct</h3>
+            </div>
+            <div class="card-body">
+                <EnrollmentStepsChartChartJs />
+                <details class="mt-3">
+                    <summary class="btn btn-sm btn-outline-secondary">View Source</summary>
+                    <pre class="mt-2 bg-light p-3 small">Renderer="chartjs"
+Spec = new {
+  type = "bar",
+  data = new {
+    labelField = "STEP_NUMBER",
+    datasets = [{ dataField = "TOTAL_SESSIONS", ... }]
+  }
+}</pre>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h3 class="mb-0">📋 Blazor Bootstrap</h3>
+            </div>
+            <div class="card-body">
+                <EnrollmentStepsChartBootstrap />
+                <details class="mt-3">
+                    <summary class="btn btn-sm btn-outline-secondary">View Source</summary>
+                    <pre class="mt-2 bg-light p-3 small">Renderer="blazor-bootstrap"
+Spec = new {
+  type = "line",
+  data = new {
+    labelField = "STEP_NUMBER",
+    datasets = [{ dataField = "TOTAL_SESSIONS", ... }]
+  }
+}</pre>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <strong>💡 Three Renderers:</strong>
+    <ul class="mb-0">
+        <li><strong>Vega-Lite</strong>: Declarative visualization grammar (JSON spec)</li>
+        <li><strong>Chart.js Direct</strong>: Native Chart.js via JSInterop (JSON spec)</li>
+        <li><strong>Blazor Bootstrap</strong>: Chart.js via Blazor Bootstrap wrapper (same JSON spec, translated to C# objects)</li>
+    </ul>
 </div>
 

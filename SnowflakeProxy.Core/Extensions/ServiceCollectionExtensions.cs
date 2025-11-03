@@ -32,7 +32,6 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddSingleton<ISnowflakeService, DirectSnowflakeService>();
-        services.AddSingleton<IVisualizationRenderer, VegaLiteRenderer>();
         services.AddScoped<IReportService, DirectReportService>();
 
         return services;
@@ -56,7 +55,6 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddSingleton<ISnowflakeService, DirectSnowflakeService>();
-        services.AddSingleton<IVisualizationRenderer, VegaLiteRenderer>();
         services.AddScoped<IReportService, DirectReportService>();
 
         return services;
@@ -80,7 +78,6 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddSingleton<ISnowflakeService, DirectSnowflakeService>();
-        services.AddSingleton<IVisualizationRenderer, VegaLiteRenderer>();
         services.AddScoped<IReportService, DirectReportService>();
 
         // Allow custom service registration
@@ -101,7 +98,6 @@ public static class ServiceCollectionExtensions
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, MemoryCacheService>();
         services.AddSingleton<ISnowflakeService, MockSnowflakeService>();
-        services.AddSingleton<IVisualizationRenderer, VegaLiteRenderer>();
         services.AddScoped<IReportService, DirectReportService>();
 
         return services;

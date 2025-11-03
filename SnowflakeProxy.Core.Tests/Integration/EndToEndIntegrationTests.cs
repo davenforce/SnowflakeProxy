@@ -1,14 +1,12 @@
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using SnowflakeProxy.Core.Models;
 using SnowflakeProxy.Core.Services;
 
 namespace SnowflakeProxy.Core.Tests.Integration;
 
 /// <summary>
-/// End-to-end integration tests that verify the entire report generation pipeline
+/// End-to-end integration tests that verify the entire query execution and caching pipeline
 /// without requiring actual Snowflake credentials.
 /// </summary>
 public class EndToEndIntegrationTests : IDisposable
@@ -16,7 +14,6 @@ public class EndToEndIntegrationTests : IDisposable
     private readonly IMemoryCache _memoryCache;
     private readonly ICacheService _cacheService;
     private readonly ISnowflakeService _snowflakeService;
-    private readonly IVisualizationRenderer _renderer;
     private readonly IReportService _reportService;
 
     public EndToEndIntegrationTests()
@@ -24,106 +21,72 @@ public class EndToEndIntegrationTests : IDisposable
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
         _cacheService = new MemoryCacheService(_memoryCache);
         _snowflakeService = new MockSnowflakeService(NullLogger<MockSnowflakeService>.Instance);
-        _renderer = new VegaLiteRenderer();
-        _reportService = new DirectReportService(_snowflakeService, _cacheService, _renderer);
+        _reportService = new DirectReportService(_snowflakeService, _cacheService);
     }
 
     [Fact]
-    public async Task GenerateReport_SalesData_WithBarChart_ShouldRenderSuccessfully()
+    public async Task ExecuteQuery_SalesData_ShouldReturnDataSuccessfully()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "sales-by-region",
-            Query = "SELECT region, revenue FROM sales",
-            Visualization = new VisualizationConfig
-            {
-                Type = "bar",
-                Title = "Sales by Region",
-                Width = 600,
-                Height = 400
-            }
-        };
+        var query = "SELECT region, revenue FROM sales";
 
         // Act
-        var result = await _reportService.GenerateReportAsync(config);
+        var result = await _reportService.ExecuteQueryAsync(query);
 
         // Assert
         result.Should().NotBeNull();
         result.Data.Should().NotBeNull();
         result.Data.Rows.Count.Should().BeGreaterThan(0);
-        result.RenderedOutput.Should().Contain("vegaEmbed");
-        result.RenderedOutput.Should().Contain("Sales by Region");
         result.FromCache.Should().BeFalse();
+        result.ExecutedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
     }
 
     [Fact]
-    public async Task GenerateReport_TimeSeriesData_WithLineChart_ShouldRenderSuccessfully()
+    public async Task ExecuteQuery_TimeSeriesData_ShouldReturnDateColumn()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "daily-metrics",
-            Query = "SELECT date, value FROM metrics WHERE date > '2024-01-01'",
-            Visualization = new VisualizationConfig
-            {
-                Type = "line",
-                Title = "Daily Metrics Trend",
-                Width = 800,
-                Height = 300
-            }
-        };
+        var query = "SELECT date, value FROM metrics WHERE date > '2024-01-01'";
 
         // Act
-        var result = await _reportService.GenerateReportAsync(config);
+        var result = await _reportService.ExecuteQueryAsync(query);
 
         // Assert
         result.Should().NotBeNull();
-        result.Data.Columns.Cast<System.Data.DataColumn>().Should().Contain(c => c.ColumnName == "Date");
-        result.RenderedOutput.Should().Contain("\"type\":\"line\"");
-        result.RenderedOutput.Should().Contain("\"point\":true");
+        result.Data.Columns.Cast<System.Data.DataColumn>()
+            .Should().Contain(c => c.ColumnName.Equals("Date", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public async Task GenerateReport_WithCaching_SecondCallShouldReturnFromCache()
+    public async Task ExecuteQuery_WithCaching_SecondCallShouldReturnFromCache()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "cached-report",
-            Query = "SELECT * FROM products",
-            Visualization = new VisualizationConfig { Type = "table" },
-            CacheTtl = TimeSpan.FromMinutes(5)
-        };
+        var query = "SELECT * FROM products";
+        var cacheTtl = TimeSpan.FromMinutes(5);
 
         // Act
-        var firstResult = await _reportService.GenerateReportAsync(config);
-        var secondResult = await _reportService.GenerateReportAsync(config);
+        var firstResult = await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
+        var secondResult = await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
 
         // Assert
         firstResult.FromCache.Should().BeFalse();
         secondResult.FromCache.Should().BeTrue();
-        secondResult.RenderedOutput.Should().Be(firstResult.RenderedOutput);
+        secondResult.Data.Rows.Count.Should().Be(firstResult.Data.Rows.Count);
+        secondResult.ExecutedAt.Should().Be(firstResult.ExecutedAt);
     }
 
     [Fact]
-    public async Task GenerateReport_WithParameters_ShouldPassParametersToQuery()
+    public async Task ExecuteQuery_WithParameters_ShouldPassParametersToQuery()
     {
         // Arrange
-        var config = new ReportConfig
+        var query = "SELECT * FROM sales WHERE year = @year LIMIT @limit";
+        var parameters = new Dictionary<string, object>
         {
-            ReportId = "parameterized-report",
-            Query = "SELECT * FROM sales WHERE year = @year LIMIT @limit",
-            Parameters = new Dictionary<string, object>
-            {
-                { "year", 2024 },
-                { "limit", 10 }
-            },
-            Visualization = new VisualizationConfig { Type = "table" }
+            { "year", 2024 },
+            { "limit", 10 }
         };
 
         // Act
-        var result = await _reportService.GenerateReportAsync(config);
+        var result = await _reportService.ExecuteQueryAsync(query, parameters);
 
         // Assert
         result.Should().NotBeNull();
@@ -131,143 +94,166 @@ public class EndToEndIntegrationTests : IDisposable
     }
 
     [Fact]
-    public async Task GenerateReport_TableVisualization_ShouldRenderHtmlTable()
+    public async Task ExecuteQuery_UsersTable_ShouldReturnUserData()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "table-report",
-            Query = "SELECT * FROM users",
-            Visualization = new VisualizationConfig { Type = "table" }
-        };
+        var query = "SELECT * FROM users";
 
         // Act
-        var result = await _reportService.GenerateReportAsync(config);
+        var result = await _reportService.ExecuteQueryAsync(query);
 
         // Assert
-        result.RenderedOutput.Should().Contain("<table");
-        result.RenderedOutput.Should().Contain("<thead>");
-        result.RenderedOutput.Should().Contain("<tbody>");
-        result.RenderedOutput.Should().NotContain("vegaEmbed");
-    }
-
-    [Fact]
-    public async Task GenerateReport_PieChart_ShouldUseThetaEncoding()
-    {
-        // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "category-distribution",
-            Query = "SELECT product, revenue FROM sales",
-            Visualization = new VisualizationConfig
-            {
-                Type = "pie",
-                Title = "Revenue Distribution by Product"
-            }
-        };
-
-        // Act
-        var result = await _reportService.GenerateReportAsync(config);
-
-        // Assert
-        result.RenderedOutput.Should().Contain("\"theta\"");
-        result.RenderedOutput.Should().Contain("\"type\":\"arc\"");
-    }
-
-    [Fact]
-    public async Task GenerateReport_MultipleDifferentQueries_ShouldAllSucceed()
-    {
-        // Arrange & Act
-        var salesReport = await _reportService.GenerateReportAsync(new ReportConfig
-        {
-            Query = "SELECT * FROM sales",
-            Visualization = new VisualizationConfig { Type = "bar" }
-        });
-
-        var userReport = await _reportService.GenerateReportAsync(new ReportConfig
-        {
-            Query = "SELECT * FROM users",
-            Visualization = new VisualizationConfig { Type = "table" }
-        });
-
-        var productReport = await _reportService.GenerateReportAsync(new ReportConfig
-        {
-            Query = "SELECT * FROM products",
-            Visualization = new VisualizationConfig { Type = "line" }
-        });
-
-        // Assert
-        salesReport.Should().NotBeNull();
-        salesReport.Data.Columns.Cast<System.Data.DataColumn>()
-            .Should().Contain(c => c.ColumnName == "Revenue" || c.ColumnName == "Region");
-
-        userReport.Should().NotBeNull();
-        userReport.Data.Columns.Cast<System.Data.DataColumn>()
+        result.Data.Should().NotBeNull();
+        result.Data.Rows.Count.Should().BeGreaterThan(0);
+        result.Data.Columns.Cast<System.Data.DataColumn>()
             .Should().Contain(c => c.ColumnName.Contains("User"));
+    }
 
-        productReport.Should().NotBeNull();
-        productReport.Data.Columns.Cast<System.Data.DataColumn>()
+    [Fact]
+    public async Task ExecuteQuery_ProductTable_ShouldReturnProductData()
+    {
+        // Arrange
+        var query = "SELECT * FROM products";
+
+        // Act
+        var result = await _reportService.ExecuteQueryAsync(query);
+
+        // Assert
+        result.Data.Should().NotBeNull();
+        result.Data.Rows.Count.Should().BeGreaterThan(0);
+        result.Data.Columns.Cast<System.Data.DataColumn>()
             .Should().Contain(c => c.ColumnName.Contains("Product"));
     }
 
     [Fact]
-    public async Task GenerateReport_WithCustomDimensions_ShouldApplyWidthAndHeight()
+    public async Task ExecuteQuery_MultipleDifferentQueries_ShouldAllSucceed()
     {
-        // Arrange
-        var config = new ReportConfig
-        {
-            Query = "SELECT region, sales FROM sales_data",
-            Visualization = new VisualizationConfig
-            {
-                Type = "bar",
-                Width = 1000,
-                Height = 600
-            }
-        };
-
-        // Act
-        var result = await _reportService.GenerateReportAsync(config);
+        // Arrange & Act
+        var salesResult = await _reportService.ExecuteQueryAsync("SELECT * FROM sales");
+        var userResult = await _reportService.ExecuteQueryAsync("SELECT * FROM users");
+        var productResult = await _reportService.ExecuteQueryAsync("SELECT * FROM products");
 
         // Assert
-        result.RenderedOutput.Should().Contain("\"width\":1000");
-        result.RenderedOutput.Should().Contain("\"height\":600");
+        salesResult.Should().NotBeNull();
+        salesResult.Data.Columns.Cast<System.Data.DataColumn>()
+            .Should().Contain(c => c.ColumnName == "Revenue" || c.ColumnName == "Region");
+
+        userResult.Should().NotBeNull();
+        userResult.Data.Columns.Cast<System.Data.DataColumn>()
+            .Should().Contain(c => c.ColumnName.Contains("User"));
+
+        productResult.Should().NotBeNull();
+        productResult.Data.Columns.Cast<System.Data.DataColumn>()
+            .Should().Contain(c => c.ColumnName.Contains("Product"));
     }
 
     [Fact]
-    public async Task GenerateReport_InvalidQuery_ShouldThrowException()
+    public async Task ExecuteQuery_InvalidQuery_ShouldThrowException()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            Query = "",
-            Visualization = new VisualizationConfig { Type = "bar" }
-        };
+        var query = "";
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(
-            async () => await _reportService.GenerateReportAsync(config));
+            async () => await _reportService.ExecuteQueryAsync(query));
     }
 
     [Fact]
     public async Task CacheService_ExpiredCache_ShouldNotReturnStaleData()
     {
         // Arrange
-        var config = new ReportConfig
-        {
-            ReportId = "expiring-report",
-            Query = "SELECT * FROM sales",
-            Visualization = new VisualizationConfig { Type = "bar" },
-            CacheTtl = TimeSpan.FromMilliseconds(100)
-        };
+        var query = "SELECT * FROM sales";
+        var cacheTtl = TimeSpan.FromMilliseconds(100);
 
         // Act
-        var firstResult = await _reportService.GenerateReportAsync(config);
+        var firstResult = await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
         await Task.Delay(150); // Wait for cache to expire
-        var secondResult = await _reportService.GenerateReportAsync(config);
+        var secondResult = await _reportService.ExecuteQueryAsync(query, null, cacheTtl);
 
         // Assert
         firstResult.FromCache.Should().BeFalse();
         secondResult.FromCache.Should().BeFalse();
+        secondResult.ExecutedAt.Should().BeAfter(firstResult.ExecutedAt);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_WithNoCacheTtl_ShouldNotUseCache()
+    {
+        // Arrange
+        var query = "SELECT * FROM sales";
+
+        // Act
+        var firstResult = await _reportService.ExecuteQueryAsync(query, null, null);
+        var secondResult = await _reportService.ExecuteQueryAsync(query, null, null);
+
+        // Assert
+        firstResult.FromCache.Should().BeFalse();
+        secondResult.FromCache.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_DifferentQueries_ShouldHaveDifferentCacheKeys()
+    {
+        // Arrange
+        var query1 = "SELECT * FROM sales";
+        var query2 = "SELECT * FROM products";
+        var cacheTtl = TimeSpan.FromMinutes(5);
+
+        // Act
+        var result1 = await _reportService.ExecuteQueryAsync(query1, null, cacheTtl);
+        var result2 = await _reportService.ExecuteQueryAsync(query2, null, cacheTtl);
+        var result1Again = await _reportService.ExecuteQueryAsync(query1, null, cacheTtl);
+
+        // Assert
+        result1.FromCache.Should().BeFalse();
+        result2.FromCache.Should().BeFalse();
+        result1Again.FromCache.Should().BeTrue(); // Should get cached result from first query
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_SalesWithRegionFilter_ShouldReturnFilteredData()
+    {
+        // Arrange
+        var query = "SELECT * FROM sales WHERE region = 'North'";
+
+        // Act
+        var result = await _reportService.ExecuteQueryAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Data.Rows.Count.Should().BeGreaterThan(0);
+        result.Data.Columns.Cast<System.Data.DataColumn>()
+            .Should().Contain(c => c.ColumnName == "Region");
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_TimeSeriesWithDateRange_ShouldReturnRangeData()
+    {
+        // Arrange
+        var query = "SELECT * FROM metrics WHERE date BETWEEN '2024-01-01' AND '2024-12-31'";
+
+        // Act
+        var result = await _reportService.ExecuteQueryAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Data.Rows.Count.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task ExecuteQuery_AggregateQuery_ShouldReturnAggregatedData()
+    {
+        // Arrange
+        var query = "SELECT region, SUM(revenue) as total FROM sales GROUP BY region";
+
+        // Act
+        var result = await _reportService.ExecuteQueryAsync(query);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Data.Rows.Count.Should().BeGreaterThan(0);
+        result.Data.Columns.Cast<System.Data.DataColumn>()
+            .Should().Contain(c => c.ColumnName == "Region");
     }
 
     public void Dispose()

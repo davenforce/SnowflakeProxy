@@ -2,8 +2,6 @@
 @using SnowflakeProxy.Core.Models
 @inject IReportService ReportService
 
-<SnowflakeProxyScripts />
-
 <div class="chart-component">
     @if (IsLoading)
     {
@@ -41,7 +39,7 @@
             }
         </div>
     }
-    else if (ReportResult != null)
+    else if (QueryResult != null)
     {
         <div class="chart-content">
             @if (!string.IsNullOrEmpty(Title))
@@ -49,14 +47,14 @@
                 <h4 class="chart-title">@Title</h4>
             }
 
-            @((MarkupString)ReportResult.RenderedOutput)
+            @RenderChart()
 
             @if (ShowMetadata)
             {
                 <div class="mt-2">
                     <small class="text-muted">
-                        Rows: @ReportResult.Data.Rows.Count
-                        @if (ReportResult.FromCache)
+                        Rows: @QueryResult.Data.Rows.Count
+                        @if (QueryResult.FromCache)
                         {
                             <text> | From Cache</text>
                         }
@@ -71,113 +69,96 @@
     /// <summary>
     /// SQL query to execute
     /// </summary>
-    [Parameter] public string Query { get; set; } = string.Empty;
+    [Parameter, EditorRequired]
+    public string Query { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Visualization configuration
+    /// </summary>
+    [Parameter]
+    public VisualizationConfig? Config { get; set; }
+
+    /// <summary>
+    /// Renderer to use: "vega-lite" or "blazor-bootstrap" (default: "vega-lite")
+    /// </summary>
+    [Parameter]
+    public string Renderer { get; set; } = "vega-lite";
 
     /// <summary>
     /// Query parameters (optional)
     /// </summary>
-    [Parameter] public Dictionary<string, object>? Parameters { get; set; }
-
-    /// <summary>
-    /// Chart type: "bar", "line", "pie", "scatter", "area", "point", "table"
-    /// </summary>
-    [Parameter] public string ChartType { get; set; } = "bar";
-
-    /// <summary>
-    /// Custom VegaLite specification (overrides ChartType)
-    /// </summary>
-    [Parameter] public object? Spec { get; set; }
-
-    /// <summary>
-    /// Chart title (optional)
-    /// </summary>
-    [Parameter] public string? Title { get; set; }
-
-    /// <summary>
-    /// Chart width in pixels
-    /// </summary>
-    [Parameter] public int? Width { get; set; }
-
-    /// <summary>
-    /// Chart height in pixels
-    /// </summary>
-    [Parameter] public int? Height { get; set; }
-
-    /// <summary>
-    /// X-axis field name (for simple charts)
-    /// </summary>
-    [Parameter] public string? XAxis { get; set; }
-
-    /// <summary>
-    /// Y-axis field name (for simple charts)
-    /// </summary>
-    [Parameter] public string? YAxis { get; set; }
-
-    /// <summary>
-    /// Color field for grouping (optional)
-    /// </summary>
-    [Parameter] public string? ColorField { get; set; }
+    [Parameter]
+    public Dictionary<string, object>? Parameters { get; set; }
 
     /// <summary>
     /// Cache TTL (optional)
     /// </summary>
-    [Parameter] public TimeSpan? CacheTtl { get; set; }
+    [Parameter]
+    public TimeSpan? CacheTtl { get; set; }
 
     /// <summary>
-    /// Report ID for caching purposes (auto-generated if not provided)
+    /// Chart title (optional, overrides Config.Title)
     /// </summary>
-    [Parameter] public string? ReportId { get; set; }
+    [Parameter]
+    public string? Title { get; set; }
 
     /// <summary>
     /// Custom loading content
     /// </summary>
-    [Parameter] public RenderFragment? LoadingContent { get; set; }
+    [Parameter]
+    public RenderFragment? LoadingContent { get; set; }
 
     /// <summary>
     /// Custom error content
     /// </summary>
-    [Parameter] public RenderFragment<string>? ErrorContent { get; set; }
+    [Parameter]
+    public RenderFragment<string>? ErrorContent { get; set; }
 
     /// <summary>
     /// Event fired when error occurs
     /// </summary>
-    [Parameter] public EventCallback<string> OnError { get; set; }
+    [Parameter]
+    public EventCallback<string> OnError { get; set; }
 
     /// <summary>
     /// Event fired when loading starts
     /// </summary>
-    [Parameter] public EventCallback OnLoading { get; set; }
+    [Parameter]
+    public EventCallback OnLoading { get; set; }
 
     /// <summary>
     /// Event fired when chart is loaded
     /// </summary>
-    [Parameter] public EventCallback<ReportResult> OnLoaded { get; set; }
+    [Parameter]
+    public EventCallback<QueryResult> OnLoaded { get; set; }
 
     /// <summary>
     /// Show retry button on error
     /// </summary>
-    [Parameter] public bool ShowRetry { get; set; } = true;
+    [Parameter]
+    public bool ShowRetry { get; set; } = true;
 
     /// <summary>
     /// Show metadata (row count, cache status)
     /// </summary>
-    [Parameter] public bool ShowMetadata { get; set; } = false;
+    [Parameter]
+    public bool ShowMetadata { get; set; } = false;
 
     private bool IsLoading { get; set; }
     private string? ErrorMessage { get; set; }
-    private ReportResult? ReportResult { get; set; }
+    private QueryResult? QueryResult { get; set; }
+    private bool _initialized;
 
     protected override async Task OnInitializedAsync()
     {
+        _initialized = true;
         await LoadChartAsync();
     }
 
-    protected override async Task OnParametersSetAsync()
+    protected override bool ShouldRender()
     {
-        if (!IsLoading && ReportResult != null)
-        {
-            await LoadChartAsync();
-        }
+        // Prevent unnecessary re-renders during initialization
+        return _initialized;
     }
 
     private async Task LoadChartAsync()
@@ -190,34 +171,15 @@
 
         IsLoading = true;
         ErrorMessage = null;
-        ReportResult = null;
+        QueryResult = null;
         StateHasChanged();
 
         await OnLoading.InvokeAsync();
 
         try
         {
-            var config = new ReportConfig
-            {
-                ReportId = ReportId ?? $"inline-{Guid.NewGuid():N}",
-                Query = Query,
-                Parameters = Parameters ?? new Dictionary<string, object>(),
-                Visualization = new VisualizationConfig
-                {
-                    Type = ChartType,
-                    Spec = Spec,
-                    Title = Title,
-                    Width = Width,
-                    Height = Height,
-                    XAxis = XAxis,
-                    YAxis = YAxis,
-                    ColorField = ColorField
-                },
-                CacheTtl = CacheTtl
-            };
-
-            ReportResult = await ReportService.GenerateReportAsync(config);
-            await OnLoaded.InvokeAsync(ReportResult);
+            QueryResult = await ReportService.ExecuteQueryAsync(Query, Parameters, CacheTtl);
+            await OnLoaded.InvokeAsync(QueryResult);
         }
         catch (Exception ex)
         {
@@ -230,4 +192,37 @@
             StateHasChanged();
         }
     }
+
+    private RenderFragment RenderChart() => builder =>
+    {
+        var spec = Config?.Spec ?? new { };
+
+        switch (Renderer.ToLowerInvariant())
+        {
+            case "vega-lite":
+                builder.OpenComponent<VegaLiteChart>(0);
+                builder.AddAttribute(1, "Data", QueryResult!.Data);
+                builder.AddAttribute(2, "Spec", spec);
+                builder.CloseComponent();
+                break;
+
+            case "chartjs":
+                builder.OpenComponent<ChartJsChart>(0);
+                builder.AddAttribute(1, "Data", QueryResult!.Data);
+                builder.AddAttribute(2, "Spec", spec);
+                builder.CloseComponent();
+                break;
+
+            case "blazor-bootstrap":
+                builder.OpenComponent<BlazorBootstrapChart>(0);
+                builder.AddAttribute(1, "Data", QueryResult!.Data);
+                builder.AddAttribute(2, "Spec", spec);
+                builder.CloseComponent();
+                break;
+
+            default:
+                builder.AddContent(0, $"Unknown renderer: {Renderer}. Supported: vega-lite, chartjs, blazor-bootstrap");
+                break;
+        }
+    };
 }
