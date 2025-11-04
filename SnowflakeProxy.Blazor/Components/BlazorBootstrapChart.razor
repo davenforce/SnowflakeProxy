@@ -45,23 +45,23 @@
         {
             case "bar":
                 if (barChart != null)
-                    await barChart.InitializeAsync(chartData, chartOptions as BarChartOptions);
+                    await barChart.InitializeAsync(chartData, (BarChartOptions)chartOptions);
                 break;
             case "line":
                 if (lineChart != null)
-                    await lineChart.InitializeAsync(chartData, chartOptions as LineChartOptions);
+                    await lineChart.InitializeAsync(chartData, (LineChartOptions)chartOptions);
                 break;
             case "pie":
                 if (pieChart != null)
-                    await pieChart.InitializeAsync(chartData, chartOptions as PieChartOptions);
+                    await pieChart.InitializeAsync(chartData, (PieChartOptions)chartOptions);
                 break;
             case "doughnut":
                 if (doughnutChart != null)
-                    await doughnutChart.InitializeAsync(chartData, chartOptions as DoughnutChartOptions);
+                    await doughnutChart.InitializeAsync(chartData, (DoughnutChartOptions)chartOptions);
                 break;
             case "polararea":
                 if (polarAreaChart != null)
-                    await polarAreaChart.InitializeAsync(chartData, chartOptions as PolarAreaChartOptions);
+                    await polarAreaChart.InitializeAsync(chartData, (PolarAreaChartOptions)chartOptions);
                 break;
         }
     }
