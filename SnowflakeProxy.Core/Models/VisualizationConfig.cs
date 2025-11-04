@@ -2,55 +2,18 @@ namespace SnowflakeProxy.Core.Models;
 
 /// <summary>
 /// Configuration for rendering visualizations from query results.
-/// This config is passed to chart renderers in the Blazor layer.
+/// Contains a renderer-specific specification that is JSON-serializable.
 /// </summary>
 public record VisualizationConfig
 {
     /// <summary>
-    /// Type of visualization to render.
-    /// Common types: "table", "bar", "line", "scatter", "pie", "area"
-    /// Specific renderers may support additional types (e.g., "doughnut", "polarArea")
-    /// </summary>
-    public string Type { get; init; } = "table";
-
-    /// <summary>
-    /// Renderer-specific advanced configuration (optional).
-    /// Interpretation depends on the chart renderer:
+    /// Renderer-specific visualization specification (JSON-serializable).
     ///
-    /// - Vega-Lite renderer: Expects a Vega-Lite specification object
-    /// - Blazor Bootstrap renderer: Expects ChartOptions-derived objects
+    /// The structure depends on the renderer:
+    /// - Vega-Lite: Vega-Lite specification object (mark, encoding, etc.)
+    /// - Chart.js (both direct and Blazor Bootstrap): Chart.js config (type, data, options)
     ///
-    /// When provided, this overrides the simple Type property and gives full control.
+    /// This object will be serialized to JSON and can be stored in a database for dynamic report definitions.
     /// </summary>
-    public object? Spec { get; init; }
-
-    /// <summary>
-    /// Chart title (used for built-in types)
-    /// </summary>
-    public string? Title { get; init; }
-
-    /// <summary>
-    /// Chart width in pixels (used for built-in types)
-    /// </summary>
-    public int? Width { get; init; }
-
-    /// <summary>
-    /// Chart height in pixels (used for built-in types)
-    /// </summary>
-    public int? Height { get; init; }
-
-    /// <summary>
-    /// Column name for X axis (used for built-in types)
-    /// </summary>
-    public string? XAxis { get; init; }
-
-    /// <summary>
-    /// Column name for Y axis (used for built-in types)
-    /// </summary>
-    public string? YAxis { get; init; }
-
-    /// <summary>
-    /// Column name for color encoding/grouping (used for built-in types)
-    /// </summary>
-    public string? ColorField { get; init; }
+    public object Spec { get; init; } = new { };
 }

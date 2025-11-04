@@ -320,9 +320,9 @@ graph TD
 
 ### Phase 2: HTTP API Layer (Planned)
 
+- [ ] Role-based access control
 - [ ] RESTful API endpoints
 - [ ] HTTP client implementations
-- [ ] Parquet serialization for efficient data transfer
 - [ ] Blazor WebAssembly support
 - [ ] Distributed caching (Redis)
 
@@ -335,7 +335,7 @@ graph TD
 
 ### Phase 4: Enterprise & Ecosystem (Planned)
 
-- [ ] Role-based access control
+- [ ] Parquet serialization for efficient data transfer
 - [ ] Visual report designer UI
 - [ ] Audit logging and monitoring
 - [ ] Plugin architecture

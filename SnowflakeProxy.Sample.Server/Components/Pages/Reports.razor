@@ -18,7 +18,14 @@
 
                 <ChartComponent
                     Query="SELECT CURRENT_WAREHOUSE() as warehouse, CURRENT_DATABASE() as database, CURRENT_SCHEMA() as schema, CURRENT_TIMESTAMP() as timestamp"
-                    Config="@(new VisualizationConfig { Type = "table" })"
+                    Config="@(new VisualizationConfig {
+                        Spec = new {
+                            mark = "point",
+                            encoding = new {
+                                text = new { field = "warehouse", type = "nominal" }
+                            }
+                        }
+                    })"
                     Renderer="vega-lite"
                     ShowMetadata="true"
                     CacheTtl="TimeSpan.FromMinutes(5)" />
@@ -61,7 +68,7 @@
                     <div class="mt-3">
                         <ChartComponent
                             Query="@customQuery"
-                            Config="@(new VisualizationConfig { Type = customChartType })"
+                            Config="@GetChartConfig(customChartType)"
                             Renderer="vega-lite"
                             ShowMetadata="true"
                             CacheTtl="TimeSpan.FromMinutes(5)" />
@@ -182,5 +189,68 @@
         shouldRenderCustom = false;
         StateHasChanged();
         shouldRenderCustom = true;
+    }
+
+    private VisualizationConfig GetChartConfig(string chartType)
+    {
+        return new VisualizationConfig
+        {
+            Spec = chartType.ToLowerInvariant() switch
+            {
+                "bar" => new
+                {
+                    mark = "bar",
+                    encoding = new
+                    {
+                        x = new { field = "column1", type = "nominal" },
+                        y = new { field = "column2", type = "quantitative" }
+                    }
+                },
+                "line" => new
+                {
+                    mark = "line",
+                    encoding = new
+                    {
+                        x = new { field = "column1", type = "ordinal" },
+                        y = new { field = "column2", type = "quantitative" }
+                    }
+                },
+                "pie" => new
+                {
+                    mark = new { type = "arc", innerRadius = 0 },
+                    encoding = new
+                    {
+                        theta = new { field = "column2", type = "quantitative" },
+                        color = new { field = "column1", type = "nominal" }
+                    }
+                },
+                "scatter" or "point" => new
+                {
+                    mark = "point",
+                    encoding = new
+                    {
+                        x = new { field = "column1", type = "quantitative" },
+                        y = new { field = "column2", type = "quantitative" }
+                    }
+                },
+                "area" => new
+                {
+                    mark = "area",
+                    encoding = new
+                    {
+                        x = new { field = "column1", type = "ordinal" },
+                        y = new { field = "column2", type = "quantitative" }
+                    }
+                },
+                _ => new
+                {
+                    mark = "point",
+                    encoding = new
+                    {
+                        x = new { field = "column1", type = "nominal" }
+                    }
+                }
+            }
+        };
     }
 }
