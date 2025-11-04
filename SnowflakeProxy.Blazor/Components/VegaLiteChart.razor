@@ -2,11 +2,11 @@
 @using System.Text.Json
 @using System.Text.Json.Serialization
 @using SnowflakeProxy.Core.Models
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
-@if (Data != null && Spec != null)
-{
-    @((MarkupString)GenerateChartHtml())
-}
+<div id="@_containerId"></div>
 
 @code {
     /// <summary>
@@ -23,15 +23,15 @@
 
     // Generate stable container ID once per component instance
     private readonly string _containerId = $"vis-{Guid.NewGuid():N}";
+    private bool _initialized;
 
-    private string GenerateChartHtml()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (Data == null || Spec == null)
-            return string.Empty;
-
-        // Inject data into Vega-Lite spec
-        var specWithData = InjectDataIntoSpec(Spec);
-        return GenerateVegaLiteHtml(specWithData);
+        if (firstRender && Data != null && Spec != null)
+        {
+            _initialized = true;
+            await RenderChartAsync();
+        }
     }
 
     private object InjectDataIntoSpec(object customSpec)
@@ -68,29 +68,33 @@
         return result;
     }
 
-    private string GenerateVegaLiteHtml(object vegaLiteSpec)
+    private async Task RenderChartAsync()
     {
-        var specJson = JsonSerializer.Serialize(vegaLiteSpec, new JsonSerializerOptions
+        if (Data == null || Spec == null)
+            return;
+
+        var specWithData = InjectDataIntoSpec(Spec);
+        var specJson = JsonSerializer.Serialize(specWithData, new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         });
 
-        return $@"
-            <div id=""{_containerId}""></div>
-            <script type=""text/javascript"">
-              (function() {{
-                if (typeof vegaEmbed === 'undefined') {{
-                  console.error('Vega-Lite not loaded. Please include vega-embed script.');
-                  return;
-                }}
+        await JSRuntime.InvokeVoidAsync("VegaLiteInterop.render", _containerId, specJson);
+    }
 
-                var spec = {specJson};
-                vegaEmbed('#{_containerId}', spec, {{
-                  actions: false,
-                  renderer: 'svg'
-                }}).catch(console.error);
-              }})();
-            </script>";
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("VegaLiteInterop.destroy", _containerId);
+            }
+            catch
+            {
+                // Ignore errors during disposal
+            }
+        }
     }
 }

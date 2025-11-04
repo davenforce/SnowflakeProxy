@@ -3,8 +3,9 @@
 
 <ChartComponent
     Query="@QueryString"
+    Parameters="@QueryParameters"
     Config="@ChartConfig"
-    Renderer="chartjs"
+    Renderer="vega-lite"
     ShowMetadata="@ShowMetadata"
     CacheTtl="@CacheTtl" />
 
@@ -27,56 +28,46 @@
     [Parameter]
     public TimeSpan? CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
 
-    private string QueryString => $@"
+    private string QueryString => @"
         SELECT
             STEP_NUMBER,
             COUNT(DISTINCT ESIGNINSTANCEID) AS TOTAL_SESSIONS
         FROM DEV_DATAMART.MART.ENROLLMENT_STEPS
-        WHERE ENROLLMENTPACKAGEID = '{EnrollmentPackageId}'
+        WHERE ENROLLMENTPACKAGEID = :enrollmentPackageId
         GROUP BY STEP_NUMBER
         ORDER BY STEP_NUMBER";
 
+    private Dictionary<string, object> QueryParameters => new()
+    {
+        { "enrollmentPackageId", EnrollmentPackageId }
+    };
+
     /// <summary>
-    /// Chart.js configuration (JSON-serializable)
+    /// Vega-Lite configuration (JSON-serializable)
     /// </summary>
     private VisualizationConfig ChartConfig => new()
     {
         Spec = new
         {
-            type = "bar",
-            data = new
+            mark = "bar",
+            encoding = new
             {
-                labelField = "STEP_NUMBER",
-                datasets = new[]
+                x = new
                 {
-                    new
-                    {
-                        label = "Total Sessions",
-                        dataField = "TOTAL_SESSIONS",
-                        backgroundColor = new[] { "rgba(54, 162, 235, 0.8)" },
-                        borderColor = new[] { "rgba(54, 162, 235, 1)" },
-                        borderWidth = new[] { 1.0 }
-                    }
+                    field = "STEP_NUMBER",
+                    type = "ordinal",
+                    axis = new { title = "Step Number" }
+                },
+                y = new
+                {
+                    field = "TOTAL_SESSIONS",
+                    type = "quantitative",
+                    axis = new { title = "Total Sessions" }
                 }
             },
-            options = new
-            {
-                responsive = true,
-                plugins = new
-                {
-                    legend = new { position = "top" },
-                    title = new
-                    {
-                        display = true,
-                        text = "Enrollment Steps"
-                    }
-                }
-            },
-            dimensions = new
-            {
-                width = 600,
-                height = 400
-            }
+            title = "Enrollment Steps (Vega-Lite)",
+            width = 600,
+            height = 400
         }
     };
 }

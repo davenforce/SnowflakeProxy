@@ -66,6 +66,14 @@
 </div>
 
 @code {
+    private const int MaxQueryLength = 50000;
+    private static readonly HashSet<string> ValidRenderers = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "vega-lite",
+        "chartjs",
+        "blazor-bootstrap"
+    };
+
     /// <summary>
     /// SQL query to execute
     /// </summary>
@@ -79,7 +87,7 @@
     public VisualizationConfig? Config { get; set; }
 
     /// <summary>
-    /// Renderer to use: "vega-lite" or "blazor-bootstrap" (default: "vega-lite")
+    /// Renderer to use: "vega-lite", "chartjs", or "blazor-bootstrap" (default: "vega-lite")
     /// </summary>
     [Parameter]
     public string Renderer { get; set; } = "vega-lite";
@@ -163,10 +171,43 @@
 
     private async Task LoadChartAsync()
     {
+        // Validate query
         if (string.IsNullOrWhiteSpace(Query))
         {
             ErrorMessage = "Query parameter is required";
             return;
+        }
+
+        if (Query.Length > MaxQueryLength)
+        {
+            ErrorMessage = $"Query exceeds maximum length of {MaxQueryLength} characters";
+            return;
+        }
+
+        // Validate renderer
+        if (!ValidRenderers.Contains(Renderer))
+        {
+            ErrorMessage = $"Invalid renderer '{Renderer}'. Supported renderers: {string.Join(", ", ValidRenderers)}";
+            return;
+        }
+
+        // Validate parameters
+        if (Parameters != null)
+        {
+            foreach (var param in Parameters)
+            {
+                if (string.IsNullOrWhiteSpace(param.Key))
+                {
+                    ErrorMessage = "Parameter names cannot be empty";
+                    return;
+                }
+
+                if (param.Key.Length > 100)
+                {
+                    ErrorMessage = $"Parameter name '{param.Key}' exceeds maximum length of 100 characters";
+                    return;
+                }
+            }
         }
 
         IsLoading = true;

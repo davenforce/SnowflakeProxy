@@ -3,8 +3,9 @@
 
 <ChartComponent
     Query="@QueryString"
+    Parameters="@QueryParameters"
     Config="@ChartConfig"
-    Renderer="chartjs"
+    Renderer="blazor-bootstrap"
     ShowMetadata="@ShowMetadata"
     CacheTtl="@CacheTtl" />
 
@@ -27,14 +28,19 @@
     [Parameter]
     public TimeSpan? CacheTtl { get; set; } = TimeSpan.FromMinutes(10);
 
-    private string QueryString => $@"
+    private string QueryString => @"
         SELECT
             STEP_NUMBER,
             COUNT(DISTINCT ESIGNINSTANCEID) AS TOTAL_SESSIONS
         FROM DEV_DATAMART.MART.ENROLLMENT_STEPS
-        WHERE ENROLLMENTPACKAGEID = '{EnrollmentPackageId}'
+        WHERE ENROLLMENTPACKAGEID = :enrollmentPackageId
         GROUP BY STEP_NUMBER
         ORDER BY STEP_NUMBER";
+
+    private Dictionary<string, object> QueryParameters => new()
+    {
+        { "enrollmentPackageId", EnrollmentPackageId }
+    };
 
     /// <summary>
     /// Chart.js configuration (JSON-serializable) - line chart variant
@@ -53,9 +59,9 @@
                     {
                         label = "Total Sessions",
                         dataField = "TOTAL_SESSIONS",
-                        backgroundColor = "rgba(75, 192, 192, 0.2)",
-                        borderColor = "rgba(75, 192, 192, 1)",
-                        borderWidth = 2.0,
+                        backgroundColor = new[] { "rgba(75, 192, 192, 0.2)" },
+                        borderColor = new[] { "rgba(75, 192, 192, 1)" },
+                        borderWidth = new[] { 2.0 },
                         fill = true,
                         tension = 0.4
                     }
